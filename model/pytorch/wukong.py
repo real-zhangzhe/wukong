@@ -1,5 +1,6 @@
 import torch
 from torch import Tensor, nn
+from typing import List
 
 from model.pytorch.embedding import Embedding
 from model.pytorch.mlp import MLP
@@ -8,24 +9,14 @@ from model.pytorch.mlp import MLP
 class LinearCompressBlock(nn.Module):
     def __init__(self, num_emb_in: int, num_emb_out: int) -> None:
         super().__init__()
-
-        self.weight = nn.Parameter(torch.empty((num_emb_in, num_emb_out)))
-        self._reset_parameters()
-
-    def _reset_parameters(self) -> None:
-        nn.init.kaiming_uniform_(self.weight)
+        self.linear = nn.Linear(num_emb_in, num_emb_out)
 
     def forward(self, inputs: Tensor) -> Tensor:
-        # (bs, num_emb_in, dim_emb) -> (bs, dim_emb, num_emb_in)
-        outputs = inputs.permute(0, 2, 1)
-
-        # (bs, dim_emb, num_emb_in) @ (num_emb_in, num_emb_out) -> (bs, dim_emb, num_emb_out)
-        outputs = outputs @ self.weight
-
-        # (bs, dim_emb, num_emb_out) -> (bs, num_emb_out, dim_emb)
-        outputs = outputs.permute(0, 2, 1)
-
-        return outputs
+        # inputs: (bs, num_emb_in, dim_emb)
+        x = inputs.permute(0, 2, 1)  # (bs, dim_emb, num_emb_in)
+        x = self.linear(x)  # (bs, dim_emb, num_emb_out)
+        x = x.permute(0, 2, 1)  # (bs, num_emb_out, dim_emb)
+        return x
 
 
 class FactorizationMachineBlock(nn.Module):
@@ -46,7 +37,7 @@ class FactorizationMachineBlock(nn.Module):
         self.dim_emb = dim_emb
         self.rank = rank
 
-        self.weight = nn.Parameter(torch.empty((num_emb_in, rank)))
+        self.rank_layer = nn.Linear(num_emb_in, rank)
         self.norm = nn.LayerNorm(num_emb_in * rank)
         self.mlp = MLP(
             dim_in=num_emb_in * rank,
@@ -55,17 +46,13 @@ class FactorizationMachineBlock(nn.Module):
             dim_out=num_emb_out * dim_emb,
             dropout=dropout,
         )
-        self._reset_parameters()
-
-    def _reset_parameters(self):
-        nn.init.kaiming_uniform_(self.weight)
 
     def forward(self, inputs: Tensor) -> Tensor:
         # (bs, num_emb_in, dim_emb) -> (bs, dim_emb, num_emb_in)
         outputs = inputs.permute(0, 2, 1)
 
         # (bs, dim_emb, num_emb_in) @ (num_emb_in, rank) -> (bs, dim_emb, rank)
-        outputs = outputs @ self.weight
+        outputs = self.rank_layer(outputs)
 
         # (bs, num_emb_in, dim_emb) @ (bs, dim_emb, rank) -> (bs, num_emb_in, rank)
         outputs = torch.bmm(inputs, outputs)
@@ -78,29 +65,6 @@ class FactorizationMachineBlock(nn.Module):
 
         # (bs, num_emb_out * dim_emb) -> (bs, num_emb_out, dim_emb)
         outputs = outputs.view(-1, self.num_emb_out, self.dim_emb)
-
-        return outputs
-
-
-class ResidualProjection(nn.Module):
-    def __init__(self, num_emb_in: int, num_emb_out: int) -> None:
-        super().__init__()
-
-        self.weight = nn.Parameter(torch.empty((num_emb_in, num_emb_out)))
-        self._reset_parameters()
-
-    def _reset_parameters(self):
-        nn.init.kaiming_uniform_(self.weight)
-
-    def forward(self, inputs: Tensor) -> Tensor:
-        # (bs, num_emb_in, dim_emb) -> (bs, dim_emb, num_emb_in)
-        outputs = inputs.permute(0, 2, 1)
-
-        # (bs, dim_emb, num_emb_in) @ (num_emb_in, num_emb_out) -> (bs, dim_emb, num_emb_out)
-        outputs = outputs @ self.weight
-
-        # # (bs, dim_emb, num_emb_out) -> (bs, num_emb_out, dim_emb)
-        outputs = outputs.permute(0, 2, 1)
 
         return outputs
 
@@ -132,7 +96,7 @@ class WukongLayer(nn.Module):
         self.norm = nn.LayerNorm(dim_emb)
 
         if num_emb_in != num_emb_lcb + num_emb_fmb:
-            self.residual_projection = ResidualProjection(
+            self.residual_projection = LinearCompressBlock(
                 num_emb_in, num_emb_lcb + num_emb_fmb
             )
         else:
@@ -158,7 +122,7 @@ class Wukong(nn.Module):
     def __init__(
         self,
         num_layers: int,
-        num_sparse_emb: int,
+        num_sparse_embs: List[int],
         dim_emb: int,
         dim_input_sparse: int,
         dim_input_dense: int,
@@ -178,7 +142,7 @@ class Wukong(nn.Module):
         self.num_emb_lcb = num_emb_lcb
         self.num_emb_fmb = num_emb_fmb
 
-        self.embedding = Embedding(num_sparse_emb, dim_emb, dim_input_dense)
+        self.embedding = Embedding(num_sparse_embs, dim_emb, dim_input_dense)
 
         num_emb_in = dim_input_sparse + dim_input_dense
         self.interaction_layers = nn.Sequential()
