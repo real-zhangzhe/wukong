@@ -29,19 +29,25 @@ def test_embedding(
     assert output.shape == (BATCH_SIZE, NUM_CAT_FEATURES + NUM_DENSE_FEATURES, DIM_EMB)
 
 
-def test_lcb(lcb_layer: LinearCompressBlock, sample_3d_continuous_input: Tensor) -> None:
+def test_lcb(
+    lcb_layer: LinearCompressBlock, sample_3d_continuous_input: Tensor
+) -> None:
     output = lcb_layer(sample_3d_continuous_input)
 
     assert output.shape == (BATCH_SIZE, NUM_CAT_FEATURES // 2, DIM_EMB)
 
 
-def test_fmb(fmb_layer: FactorizationMachineBlock, sample_3d_continuous_input: Tensor) -> None:
+def test_fmb(
+    fmb_layer: FactorizationMachineBlock, sample_3d_continuous_input: Tensor
+) -> None:
     output = fmb_layer(sample_3d_continuous_input)
 
     assert output.shape == (BATCH_SIZE, NUM_CAT_FEATURES // 2, DIM_EMB)
 
 
-def test_residual_projection(residual_projection: ResidualProjection, sample_3d_continuous_input: Tensor) -> None:
+def test_residual_projection(
+    residual_projection: ResidualProjection, sample_3d_continuous_input: Tensor
+) -> None:
     output = residual_projection(sample_3d_continuous_input)
 
     assert output.shape == (BATCH_SIZE, NUM_CAT_FEATURES // 2, DIM_EMB)
@@ -56,7 +62,9 @@ def test_residual_projection_identity(
     assert output.shape == sample_3d_continuous_input.shape
 
 
-def test_wukong_layer(wukong_layer: WukongLayer, sample_3d_continuous_input: Tensor) -> None:
+def test_wukong_layer(
+    wukong_layer: WukongLayer, sample_3d_continuous_input: Tensor
+) -> None:
     output = wukong_layer(sample_3d_continuous_input)
 
     assert output.shape == (BATCH_SIZE, 16 + 16, DIM_EMB)

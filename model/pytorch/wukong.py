@@ -132,7 +132,9 @@ class WukongLayer(nn.Module):
         self.norm = nn.LayerNorm(dim_emb)
 
         if num_emb_in != num_emb_lcb + num_emb_fmb:
-            self.residual_projection = ResidualProjection(num_emb_in, num_emb_lcb + num_emb_fmb)
+            self.residual_projection = ResidualProjection(
+                num_emb_in, num_emb_lcb + num_emb_fmb
+            )
         else:
             self.residual_projection = nn.Identity()
 

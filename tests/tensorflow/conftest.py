@@ -30,7 +30,9 @@ def sample_3d_continuous_input():
 
 @pytest.fixture(scope="module")
 def sample_categorical_input():
-    return tf.random.categorical(tf.random.uniform((BATCH_SIZE, NUM_EMBEDDING)), NUM_CAT_FEATURES, dtype=tf.int32)
+    return tf.random.categorical(
+        tf.random.uniform((BATCH_SIZE, NUM_EMBEDDING)), NUM_CAT_FEATURES, dtype=tf.int32
+    )
 
 
 @pytest.fixture

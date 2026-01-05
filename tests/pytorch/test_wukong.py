@@ -32,7 +32,9 @@ def test_fmb(fmb_layer: Module, sample_3d_continuous_input: Tensor) -> None:
     assert output.shape == (BATCH_SIZE, NUM_CAT_FEATURES // 2, DIM_EMB)
 
 
-def test_residual_projection(residual_projection: Module, sample_3d_continuous_input: Tensor) -> None:
+def test_residual_projection(
+    residual_projection: Module, sample_3d_continuous_input: Tensor
+) -> None:
     output = residual_projection(sample_3d_continuous_input)
 
     assert output.shape == (BATCH_SIZE, NUM_CAT_FEATURES // 2, DIM_EMB)

@@ -26,7 +26,9 @@ class Embedding(Layer):
     def call(self, inputs: list[Tensor]) -> Tensor:
         inputs_sparse, inputs_dense = inputs
         sparse_outputs = self.sparse_embedding(inputs_sparse)
-        dense_outputs = tf.reshape(self.dense_embedding(inputs_dense), (-1, self.dim_dense, self.dim_emb))
+        dense_outputs = tf.reshape(
+            self.dense_embedding(inputs_dense), (-1, self.dim_dense, self.dim_emb)
+        )
 
         return tf.concat([sparse_outputs, dense_outputs], axis=1)
 

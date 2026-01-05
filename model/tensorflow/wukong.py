@@ -10,7 +10,12 @@ from model.tensorflow.mlp import MLP
 
 
 class LinearCompressBlock(Layer):
-    def __init__(self, num_emb_out: int, weights_initializer: str = "he_uniform", name: str = "lcb") -> None:
+    def __init__(
+        self,
+        num_emb_out: int,
+        weights_initializer: str = "he_uniform",
+        name: str = "lcb",
+    ) -> None:
         super().__init__(name=name)
         self.num_emb_out = num_emb_out
         self.weights_initializer = weights_initializer
@@ -208,7 +213,9 @@ class WukongLayer(Layer):
         )
 
         if num_emb_in != self.num_emb_lcb + self.num_emb_fmb:
-            self.residual_projection = ResidualProjection(self.num_emb_lcb + self.num_emb_fmb)
+            self.residual_projection = ResidualProjection(
+                self.num_emb_lcb + self.num_emb_fmb
+            )
         else:
             self.residual_projection = Identity()
 
@@ -293,7 +300,9 @@ class Wukong(Model):
     def call(self, inputs: list[Tensor]) -> Tensor:
         outputs = self.embedding(inputs)
         outputs = self.interaction_layers(outputs)
-        outputs = tf.reshape(outputs, (-1, (self.num_emb_lcb + self.num_emb_fmb) * self.dim_emb))
+        outputs = tf.reshape(
+            outputs, (-1, (self.num_emb_lcb + self.num_emb_fmb) * self.dim_emb)
+        )
         outputs = self.projection_head(outputs)
 
         return outputs
