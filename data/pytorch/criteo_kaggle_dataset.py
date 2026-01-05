@@ -10,8 +10,10 @@ class CriteoDataset(Dataset):
         split: str = "train",
     ):
         data = np.load(npz_file_path)
-        self.labels = torch.from_numpy(data["y"].astype(np.uint8))  # 0 or 1
-        self.dense_features = torch.from_numpy(data["X_int"].astype(np.int32))  # int32
+        self.labels = torch.from_numpy(data["y"].astype(np.float32))  # 0 or 1
+        self.dense_features = torch.log(
+            torch.from_numpy(data["X_int"].astype(np.float32)) + 1.0
+        )  # float32
         self.sparse_features = torch.from_numpy(data["X_cat"].astype(np.int32))  # int32
         del data
         assert split in ["train", "valid"], "split must be 'train' or 'valid'"
@@ -34,10 +36,10 @@ class CriteoDataset(Dataset):
         return self.labels.shape[0]
 
     def __getitem__(self, idx):
-        label = self.labels[idx]
-        dense_feat = self.dense_features[idx]
         sparse_feat = self.sparse_features[idx]
-        return label, dense_feat, sparse_feat
+        dense_feat = self.dense_features[idx]
+        label = self.labels[idx]
+        return sparse_feat, dense_feat, label
 
 
 def get_dataloader(
