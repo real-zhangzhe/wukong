@@ -96,7 +96,7 @@ model = Wukong(
 ####################################################################################################
 DEVICE = torch.device("musa")
 BATCH_SIZE = 16384  # training batch size
-TRAIN_EPOCHS = 10  # number of training epochs
+TRAIN_EPOCHS = 2  # number of training epochs
 PEAK_LR = 0.04  # peak learning rate
 INIT_LR = 1e-4  # initial learning rate
 critrion = (
@@ -113,18 +113,18 @@ other_parameters = [
     if "embedding.sparse_embedding" not in name
 ]
 embedding_optimizer = RowWiseAdagrad(
-    embedding_parameters, lr=0.04
+    embedding_parameters, lr=0.004
 )  # RowWiseAdagrad optimizer for embeddings
-other_optimizer = torch.optim.Adam(other_parameters, lr=0.04)  # Adam optimizer
+other_optimizer = torch.optim.Adam(other_parameters, lr=0.004)  # Adam optimizer
 embedding_optimizer_lr_scheduler = torch.optim.lr_scheduler.LinearLR(
     embedding_optimizer,
     start_factor=INIT_LR / PEAK_LR,
-    total_iters=(39291958 // BATCH_SIZE // 5),
+    total_iters=(39291958 // BATCH_SIZE),
 )
 other_optimizer_lr_scheduler = torch.optim.lr_scheduler.LinearLR(
     other_optimizer,
     start_factor=INIT_LR / PEAK_LR,
-    total_iters=(39291958 // BATCH_SIZE // 5),
+    total_iters=(39291958 // BATCH_SIZE),
 )
 
 ####################################################################################################
@@ -168,6 +168,7 @@ logger.setLevel(logging.INFO)
 logger.addHandler(file_handler)
 logger.addHandler(stdout_handler)
 writer = SummaryWriter(log_dir=f"logs/pytorch/{formatted_time}/tensorboard")
+os.system("cp " + __file__ + f" logs/pytorch/{formatted_time}/")
 checkpoint_dir = f"logs/pytorch/{formatted_time}/checkpoints"
 SAVE_CHECKPOINTS = False
 if SAVE_CHECKPOINTS:
