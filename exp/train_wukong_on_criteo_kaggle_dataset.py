@@ -97,8 +97,8 @@ model = Wukong(
 DEVICE = torch.device("musa")
 BATCH_SIZE = 16384  # training batch size
 TRAIN_EPOCHS = 2  # number of training epochs
-PEAK_LR = 0.04  # peak learning rate
-INIT_LR = 1e-4  # initial learning rate
+PEAK_LR = 0.004  # peak learning rate
+INIT_LR = 1e-8  # initial learning rate
 critrion = (
     torch.nn.BCEWithLogitsLoss()
 )  # binary cross-entropy loss for binary classification
@@ -113,9 +113,9 @@ other_parameters = [
     if "embedding.sparse_embedding" not in name
 ]
 embedding_optimizer = RowWiseAdagrad(
-    embedding_parameters, lr=0.004
+    embedding_parameters, lr=PEAK_LR
 )  # RowWiseAdagrad optimizer for embeddings
-other_optimizer = torch.optim.Adam(other_parameters, lr=0.004)  # Adam optimizer
+other_optimizer = torch.optim.Adam(other_parameters, lr=PEAK_LR)  # Adam optimizer
 embedding_optimizer_lr_scheduler = torch.optim.lr_scheduler.LinearLR(
     embedding_optimizer,
     start_factor=INIT_LR / PEAK_LR,
