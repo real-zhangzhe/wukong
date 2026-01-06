@@ -50,16 +50,16 @@ DIM_OUTPUT = 1  # dimension of the model output for binary classification
 ####################################################################################################
 #                                   MODEL SPECIFIC CONFIGURATION                                   #
 ####################################################################################################
-NUM_LAYERS = 2  # number of Wukong layers
+NUM_LAYERS = 8  # number of Wukong layers
 DIM_EMB = 128  # dimension of embeddings
 NUM_EMB_LCB = 32  # number of low-rank components for embedding compression in LCB
 NUM_EMB_FMB = 32  # number of factors for multi-branch factorization in FMB
 RANK_FMB = 24  # rank for multi-branch factorization in FMB
-NUM_HIDDEN_WUKONG = 2  # number of hidden layers in Wukong MLPs
-DIM_HIDDEN_WUKONG = 1024  # dimension of hidden layers in Wukong MLPs
+NUM_HIDDEN_WUKONG = 3  # number of hidden layers in Wukong MLPs
+DIM_HIDDEN_WUKONG = 2048  # dimension of hidden layers in Wukong MLPs
 NUM_HIDDEN_HEAD = 2  # number of hidden layers in the final prediction head MLP
 DIM_HIDDEN_HEAD = 512  # dimension of hidden layers in the final prediction head
-DROPOUT = 0.1  # dropout rate
+DROPOUT = 0.5  # dropout rate
 
 ####################################################################################################
 #                                           CREATE MODEL                                           #
@@ -85,8 +85,10 @@ model = Wukong(
 #                                  TRAINING SPECIFIC CONFIGURATION                                 #
 ####################################################################################################
 DEVICE = torch.device("musa")
-BATCH_SIZE = 1024  # training batch size
+BATCH_SIZE = 16384  # training batch size
 TRAIN_EPOCHS = 3  # number of training epochs
+PEAK_LR = 0.04  # peak learning rate
+INIT_LR = 1e-4  # initial learning rate
 critrion = (
     torch.nn.BCEWithLogitsLoss()
 )  # binary cross-entropy loss for binary classification
@@ -104,6 +106,16 @@ embedding_optimizer = RowWiseAdagrad(
     embedding_parameters, lr=0.04
 )  # RowWiseAdagrad optimizer for embeddings
 other_optimizer = torch.optim.Adam(other_parameters, lr=0.04)  # Adam optimizer
+embedding_optimizer_lr_scheduler = torch.optim.lr_scheduler.LinearLR(
+    embedding_optimizer,
+    start_factor=INIT_LR / PEAK_LR,
+    total_iters=(39291958 // BATCH_SIZE // 5),
+)
+other_optimizer_lr_scheduler = torch.optim.lr_scheduler.LinearLR(
+    other_optimizer,
+    start_factor=INIT_LR / PEAK_LR,
+    total_iters=(39291958 // BATCH_SIZE // 5),
+)
 
 ####################################################################################################
 #                                       CREATE DATALOADER                                          #
@@ -139,6 +151,8 @@ logger.setLevel(logging.INFO)
 logger.addHandler(file_handler)
 logger.addHandler(stdout_handler)
 writer = SummaryWriter(log_dir=f"logs/pytorch/{formatted_time}/tensorboard")
+checkpoint_dir = f"logs/pytorch/{formatted_time}/checkpoints"
+os.makedirs(checkpoint_dir, exist_ok=True)
 
 ####################################################################################################
 #                                           TRAINING LOOP                                          #
@@ -153,11 +167,30 @@ for epoch in range(TRAIN_EPOCHS):
         loss.backward()
         embedding_optimizer.step()
         other_optimizer.step()
+        embedding_optimizer_lr_scheduler.step()
+        other_optimizer_lr_scheduler.step()
         if (batch_idx + 1) % 100 == 0:
             logger.info(
                 f"Epoch [{epoch+1}/{TRAIN_EPOCHS}], "
                 f"Batch [{batch_idx+1}/{len(dataloader)}], "
-                f"Loss: {loss.item():.4f}"
+                f"Loss: {loss.item():.4f}, "
+                f"Embedding LR: {embedding_optimizer_lr_scheduler.get_last_lr()[0]:.6f}, "
+                f"Other LR: {other_optimizer_lr_scheduler.get_last_lr()[0]:.6f}"
             )
         writer.add_scalar("training_loss", loss, step)
+        writer.add_scalar(
+            "embedding_optimizer_lr",
+            embedding_optimizer_lr_scheduler.get_last_lr()[0],
+            step,
+        )
+        writer.add_scalar(
+            "other_optimizer_lr", other_optimizer_lr_scheduler.get_last_lr()[0], step
+        )
         step += 1
+    torch.save(
+        model.state_dict(),
+        os.path.join(checkpoint_dir, f"wukong_epoch_{epoch+1}.pth"),
+    )
+    logger.info(
+        f"Model checkpoint saved for epoch {epoch+1} at {checkpoint_dir}/wukong_epoch_{epoch+1}.pth"
+    )
