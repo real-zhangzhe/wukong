@@ -86,7 +86,7 @@ model = Wukong(
 ####################################################################################################
 DEVICE = torch.device("musa")
 BATCH_SIZE = 16384  # training batch size
-TRAIN_EPOCHS = 3  # number of training epochs
+TRAIN_EPOCHS = 10  # number of training epochs
 PEAK_LR = 0.04  # peak learning rate
 INIT_LR = 1e-4  # initial learning rate
 critrion = (
