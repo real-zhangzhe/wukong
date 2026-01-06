@@ -10,7 +10,7 @@ class CriteoDataset(Dataset):
         split: str = "train",
     ):
         data = np.load(npz_file_path)
-        self.labels = torch.from_numpy(data["y"].astype(np.float32))  # 0 or 1
+        self.labels = torch.from_numpy(data["y"].astype(np.uint8))  # 0 or 1
         self.dense_features = torch.log(
             torch.from_numpy(data["X_int"].astype(np.float32)) + 1.0
         )  # float32

@@ -120,11 +120,18 @@ other_optimizer_lr_scheduler = torch.optim.lr_scheduler.LinearLR(
 ####################################################################################################
 #                                       CREATE DATALOADER                                          #
 ####################################################################################################
-dataloader = get_dataloader(
+train_dataloader = get_dataloader(
     npz_file_path=NPZ_FILE_PATH,
     split="train",
     batch_size=BATCH_SIZE,
     shuffle=True,
+    num_workers=4,
+)
+valid_dataloader = get_dataloader(
+    npz_file_path=NPZ_FILE_PATH,
+    split="valid",
+    batch_size=BATCH_SIZE,
+    shuffle=False,
     num_workers=4,
 )
 
@@ -132,7 +139,7 @@ dataloader = get_dataloader(
 #                                         CREATE LOGGER                                            #
 ####################################################################################################
 now = datetime.now()
-formatted_time = now.strftime("%Y-%m-%d-%H:%M:%S")
+formatted_time = now.strftime("%Y-%m-%d-%H.%M.%S")
 formatter = logging.Formatter(
     fmt="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
@@ -152,7 +159,34 @@ logger.addHandler(file_handler)
 logger.addHandler(stdout_handler)
 writer = SummaryWriter(log_dir=f"logs/pytorch/{formatted_time}/tensorboard")
 checkpoint_dir = f"logs/pytorch/{formatted_time}/checkpoints"
-os.makedirs(checkpoint_dir, exist_ok=True)
+SAVE_CHECKPOINTS = True
+if SAVE_CHECKPOINTS:
+    os.makedirs(checkpoint_dir, exist_ok=True)
+
+
+####################################################################################################
+#                                          VALID FUNCTION                                          #
+####################################################################################################
+def validate(model, dataloader):
+    model.eval()
+    num_samples = 0
+    num_correct = 0
+    pos_samples = 0
+    pos_correct = 0
+    with torch.no_grad():
+        for sparse_inputs, dense_inputs, labels in dataloader:
+            outputs = model(sparse_inputs.to(DEVICE), dense_inputs.to(DEVICE))
+            labels = labels.to(DEVICE)
+            predictions = outputs.squeeze() >= 0
+            num_samples += labels.size(0)
+            pos_samples += (labels == 1).sum().item()
+            pos_correct += ((predictions == 1) & (labels == 1)).sum().item()
+            num_correct += (predictions == labels).sum().item()
+    model.train()
+    accuracy = num_correct / num_samples if num_samples > 0 else 0
+    recall_pos = pos_correct / pos_samples if pos_samples > 0 else 0
+    return accuracy, num_samples, recall_pos, pos_samples
+
 
 ####################################################################################################
 #                                           TRAINING LOOP                                          #
@@ -160,9 +194,9 @@ os.makedirs(checkpoint_dir, exist_ok=True)
 model.to(DEVICE).train()
 step = 0
 for epoch in range(TRAIN_EPOCHS):
-    for batch_idx, (sparse_inputs, dense_inputs, labels) in enumerate(dataloader):
+    for batch_idx, (sparse_inputs, dense_inputs, labels) in enumerate(train_dataloader):
         outputs = model(sparse_inputs.to(DEVICE), dense_inputs.to(DEVICE))
-        loss = critrion(outputs.squeeze(), labels.to(DEVICE))
+        loss = critrion(outputs.squeeze(), labels.to(DEVICE).to(torch.float32))
         model.zero_grad()
         loss.backward()
         embedding_optimizer.step()
@@ -172,7 +206,7 @@ for epoch in range(TRAIN_EPOCHS):
         if (batch_idx + 1) % 100 == 0:
             logger.info(
                 f"Epoch [{epoch+1}/{TRAIN_EPOCHS}], "
-                f"Batch [{batch_idx+1}/{len(dataloader)}], "
+                f"Batch [{batch_idx+1}/{len(train_dataloader)}], "
                 f"Loss: {loss.item():.4f}, "
                 f"Embedding LR: {embedding_optimizer_lr_scheduler.get_last_lr()[0]:.6f}, "
                 f"Other LR: {other_optimizer_lr_scheduler.get_last_lr()[0]:.6f}"
@@ -187,10 +221,22 @@ for epoch in range(TRAIN_EPOCHS):
             "other_optimizer_lr", other_optimizer_lr_scheduler.get_last_lr()[0], step
         )
         step += 1
-    torch.save(
-        model.state_dict(),
-        os.path.join(checkpoint_dir, f"wukong_epoch_{epoch+1}.pth"),
-    )
+    # Validate the model at the end of each epoch
+    accuracy, num_samples, recall_pos, pos_samples = validate(model, valid_dataloader)
     logger.info(
-        f"Model checkpoint saved for epoch {epoch+1} at {checkpoint_dir}/wukong_epoch_{epoch+1}.pth"
+        f"Validation after Epoch {epoch+1}: "
+        f"Accuracy: {accuracy*100:.2f}%, "
+        f"Total Samples: {num_samples}, "
+        f"Positive Recall: {recall_pos*100:.2f}%, "
+        f"Positive Samples: {pos_samples}"
     )
+    writer.add_scalar("validation_accuracy", accuracy, epoch + 1)
+    writer.add_scalar("validation_recall_pos", recall_pos, epoch + 1)
+    if SAVE_CHECKPOINTS:
+        torch.save(
+            model.state_dict(),
+            os.path.join(checkpoint_dir, f"wukong_epoch_{epoch+1}.pth"),
+        )
+        logger.info(
+            f"Model checkpoint saved for epoch {epoch+1} at {checkpoint_dir}/wukong_epoch_{epoch+1}.pth"
+        )
