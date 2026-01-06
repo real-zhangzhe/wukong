@@ -68,7 +68,7 @@ RANK_FMB = 24  # rank for multi-branch factorization in FMB
 NUM_HIDDEN_WUKONG = 3  # number of hidden layers in Wukong MLPs
 DIM_HIDDEN_WUKONG = 2048  # dimension of hidden layers in Wukong MLPs
 NUM_HIDDEN_HEAD = 2  # number of hidden layers in the final prediction head MLP
-DIM_HIDDEN_HEAD = 512  # dimension of hidden layers in the final prediction head
+DIM_HIDDEN_HEAD = 256  # dimension of hidden layers in the final prediction head
 DROPOUT = 0.5  # dropout rate
 
 ####################################################################################################
@@ -96,7 +96,7 @@ model = Wukong(
 ####################################################################################################
 DEVICE = torch.device("musa")
 BATCH_SIZE = 16384  # training batch size
-TRAIN_EPOCHS = 2  # number of training epochs
+TRAIN_EPOCHS = 3  # number of training epochs
 PEAK_LR = 0.004  # peak learning rate
 INIT_LR = 1e-8  # initial learning rate
 critrion = (
