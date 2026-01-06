@@ -169,7 +169,7 @@ logger.addHandler(file_handler)
 logger.addHandler(stdout_handler)
 writer = SummaryWriter(log_dir=f"logs/pytorch/{formatted_time}/tensorboard")
 checkpoint_dir = f"logs/pytorch/{formatted_time}/checkpoints"
-SAVE_CHECKPOINTS = True
+SAVE_CHECKPOINTS = False
 if SAVE_CHECKPOINTS:
     os.makedirs(checkpoint_dir, exist_ok=True)
 
