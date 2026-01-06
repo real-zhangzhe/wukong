@@ -1,9 +1,12 @@
 import torch
 import logging
 import sys
+from datetime import datetime
+import os
 from torch.utils.tensorboard import SummaryWriter
 
 from model.pytorch.wukong import Wukong
+from model.pytorch.optimizer import RowWiseAdagrad
 from data.pytorch.criteo_kaggle_dataset import get_dataloader
 
 
@@ -47,13 +50,13 @@ DIM_OUTPUT = 1  # dimension of the model output for binary classification
 ####################################################################################################
 #                                   MODEL SPECIFIC CONFIGURATION                                   #
 ####################################################################################################
-NUM_LAYERS = 4  # number of Wukong layers
+NUM_LAYERS = 2  # number of Wukong layers
 DIM_EMB = 128  # dimension of embeddings
 NUM_EMB_LCB = 32  # number of low-rank components for embedding compression in LCB
 NUM_EMB_FMB = 32  # number of factors for multi-branch factorization in FMB
 RANK_FMB = 24  # rank for multi-branch factorization in FMB
-NUM_HIDDEN_WUKONG = 3  # number of hidden layers in Wukong MLPs
-DIM_HIDDEN_WUKONG = 2048  # dimension of hidden layers in Wukong MLPs
+NUM_HIDDEN_WUKONG = 2  # number of hidden layers in Wukong MLPs
+DIM_HIDDEN_WUKONG = 1024  # dimension of hidden layers in Wukong MLPs
 NUM_HIDDEN_HEAD = 2  # number of hidden layers in the final prediction head MLP
 DIM_HIDDEN_HEAD = 512  # dimension of hidden layers in the final prediction head
 DROPOUT = 0.1  # dropout rate
@@ -82,14 +85,25 @@ model = Wukong(
 #                                  TRAINING SPECIFIC CONFIGURATION                                 #
 ####################################################################################################
 DEVICE = torch.device("musa")
-BATCH_SIZE = 4096  # training batch size
+BATCH_SIZE = 1024  # training batch size
 TRAIN_EPOCHS = 3  # number of training epochs
-CRITRION = (
+critrion = (
     torch.nn.BCEWithLogitsLoss()
 )  # binary cross-entropy loss for binary classification
-OPTIMIZER = torch.optim.Adam(
-    model.parameters(), lr=0.001, weight_decay=1e-5
-)  # Adam optimizer
+embedding_parameters = [
+    param
+    for name, param in model.named_parameters()
+    if "embedding.sparse_embedding" in name
+]
+other_parameters = [
+    param
+    for name, param in model.named_parameters()
+    if "embedding.sparse_embedding" not in name
+]
+embedding_optimizer = RowWiseAdagrad(
+    embedding_parameters, lr=0.04
+)  # RowWiseAdagrad optimizer for embeddings
+other_optimizer = torch.optim.Adam(other_parameters, lr=0.04)  # Adam optimizer
 
 ####################################################################################################
 #                                       CREATE DATALOADER                                          #
@@ -105,11 +119,16 @@ dataloader = get_dataloader(
 ####################################################################################################
 #                                         CREATE LOGGER                                            #
 ####################################################################################################
+now = datetime.now()
+formatted_time = now.strftime("%Y-%m-%d-%H:%M:%S")
 formatter = logging.Formatter(
     fmt="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
-file_handler = logging.FileHandler("app.log", mode="a", encoding="utf-8")
+os.makedirs(f"logs/pytorch/{formatted_time}", exist_ok=True)
+file_handler = logging.FileHandler(
+    f"logs/pytorch/{formatted_time}/training.log", mode="a", encoding="utf-8"
+)
 file_handler.setLevel(logging.INFO)
 file_handler.setFormatter(formatter)
 stdout_handler = logging.StreamHandler(sys.stdout)
@@ -119,21 +138,26 @@ logger = logging.getLogger("wukong_training")
 logger.setLevel(logging.INFO)
 logger.addHandler(file_handler)
 logger.addHandler(stdout_handler)
+writer = SummaryWriter(log_dir=f"logs/pytorch/{formatted_time}/tensorboard")
 
 ####################################################################################################
 #                                           TRAINING LOOP                                          #
 ####################################################################################################
-model = model.to(DEVICE).train()
+model.to(DEVICE).train()
+step = 0
 for epoch in range(TRAIN_EPOCHS):
     for batch_idx, (sparse_inputs, dense_inputs, labels) in enumerate(dataloader):
         outputs = model(sparse_inputs.to(DEVICE), dense_inputs.to(DEVICE))
-        loss = CRITRION(outputs, labels.to(DEVICE))
+        loss = critrion(outputs.squeeze(), labels.to(DEVICE))
         model.zero_grad()
         loss.backward()
-        OPTIMIZER.step()
+        embedding_optimizer.step()
+        other_optimizer.step()
         if (batch_idx + 1) % 100 == 0:
             logger.info(
                 f"Epoch [{epoch+1}/{TRAIN_EPOCHS}], "
                 f"Batch [{batch_idx+1}/{len(dataloader)}], "
                 f"Loss: {loss.item():.4f}"
             )
+        writer.add_scalar("training_loss", loss, step)
+        step += 1
