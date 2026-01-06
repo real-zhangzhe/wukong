@@ -1,4 +1,6 @@
 import torch
+import numpy as np
+import random
 import logging
 import sys
 from datetime import datetime
@@ -9,6 +11,14 @@ from model.pytorch.wukong import Wukong
 from model.pytorch.optimizer import RowWiseAdagrad
 from data.pytorch.criteo_kaggle_dataset import get_dataloader
 
+
+####################################################################################################
+#                                           SET RANDOM SEEDS                                       #
+####################################################################################################
+SEED = 42
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
 
 ####################################################################################################
 #                                  DATASET SPECIFIC CONFIGURATION                                  #
