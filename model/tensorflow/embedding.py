@@ -2,7 +2,7 @@ from typing import Any
 
 import tensorflow as tf
 from keras.layers import Dense, Layer
-from keras.layers import Embedding as SparseEmbedding
+from keras.layers import Embedding
 from tensorflow import Tensor, TensorShape
 
 
@@ -18,7 +18,7 @@ class Embedding(Layer):
         _, input_shape_dense = inputs_shape
         dim_dense = input_shape_dense[-1]
 
-        self.sparse_embedding = SparseEmbedding(self.num_sparse_emb, self.dim_emb)
+        self.sparse_embedding = Embedding(self.num_sparse_emb, self.dim_emb)
         self.dense_embedding = Dense(dim_dense * self.dim_emb, use_bias=self.bias)
         self.dim_dense = dim_dense
         self.built = True
