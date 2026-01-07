@@ -9,10 +9,6 @@ def get_criteo_tf_dataset(
     shuffle: bool = True,
     seed: int = 42,
 ) -> tf.data.Dataset:
-    """
-    加载 Criteo 数据并返回 tf.data.Dataset 对象。
-    可以直接用于 model.fit()
-    """
 
     print(f"Loading data from {npz_file_path} for split: {split}...")
     with np.load(npz_file_path) as data:
