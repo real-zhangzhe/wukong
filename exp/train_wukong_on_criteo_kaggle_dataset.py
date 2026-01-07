@@ -91,11 +91,11 @@ DIM_OUTPUT = 1  # dimension of the model output for binary classification
 ####################################################################################################
 NUM_LAYERS = 8  # number of Wukong layers
 DIM_EMB = 128  # dimension of embeddings
-NUM_EMB_LCB = 48  # number of low-rank components for embedding compression in LCB
-NUM_EMB_FMB = 48  # number of factors for multi-branch factorization in FMB
-RANK_FMB = 48  # rank for multi-branch factorization in FMB
+NUM_EMB_LCB = 32  # number of low-rank components for embedding compression in LCB
+NUM_EMB_FMB = 32  # number of factors for multi-branch factorization in FMB
+RANK_FMB = 24  # rank for multi-branch factorization in FMB
 NUM_HIDDEN_WUKONG = 3  # number of hidden layers in Wukong MLPs
-DIM_HIDDEN_WUKONG = 4096  # dimension of hidden layers in Wukong MLPs
+DIM_HIDDEN_WUKONG = 2048  # dimension of hidden layers in Wukong MLPs
 NUM_HIDDEN_HEAD = 2  # number of hidden layers in the final prediction head MLP
 DIM_HIDDEN_HEAD = 256  # dimension of hidden layers in the final prediction head
 DROPOUT = 0.5  # dropout rate
