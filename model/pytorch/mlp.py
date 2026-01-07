@@ -10,10 +10,11 @@ class MLP(nn.Sequential):
         dim_out: int | None = None,
         batch_norm: bool = True,
         dropout: float = 0.0,
+        bias: bool = False,
     ) -> None:
         layers = []
         for _ in range(num_hidden - 1):
-            layers.append(nn.Linear(dim_in, dim_hidden))
+            layers.append(nn.Linear(dim_in, dim_hidden, bias=bias))
 
             if batch_norm:
                 layers.append(nn.BatchNorm1d(dim_hidden))
@@ -23,8 +24,8 @@ class MLP(nn.Sequential):
             dim_in = dim_hidden
 
         if dim_out:
-            layers.append(nn.Linear(dim_in, dim_out))
+            layers.append(nn.Linear(dim_in, dim_out, bias=bias))
         else:
-            layers.append(nn.Linear(dim_in, dim_hidden))
+            layers.append(nn.Linear(dim_in, dim_hidden, bias=bias))
 
         super().__init__(*layers)

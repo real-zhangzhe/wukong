@@ -25,7 +25,7 @@ model = Wukong(
     num_hidden_head=2,
     dim_hidden_head=32,
     dim_output=1,
-    dropout=0.0,
+    dropout=0.5,
 )
 model.eval()
 dummy_sparse_input = torch.stack(

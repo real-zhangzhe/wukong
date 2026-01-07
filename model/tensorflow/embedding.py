@@ -7,7 +7,7 @@ from tensorflow import Tensor, TensorShape
 
 
 class Embedding(Layer):
-    def __init__(self, num_sparse_emb: int, dim_emb: int, bias: bool = True) -> None:
+    def __init__(self, num_sparse_emb: int, dim_emb: int, bias: bool = False) -> None:
         super().__init__()
 
         self.num_sparse_emb = num_sparse_emb

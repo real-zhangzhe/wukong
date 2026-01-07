@@ -24,7 +24,7 @@ class Embedding(nn.Module):
         num_sparse_embs: List[int],
         dim_emb: int,
         dim_input_dense: int,
-        bias: bool = True,
+        bias: bool = False,
     ) -> None:
         super().__init__()
 

@@ -7,9 +7,9 @@ from model.pytorch.mlp import MLP
 
 
 class LinearCompressBlock(nn.Module):
-    def __init__(self, num_emb_in: int, num_emb_out: int) -> None:
+    def __init__(self, num_emb_in: int, num_emb_out: int, bias: bool = False) -> None:
         super().__init__()
-        self.linear = nn.Linear(num_emb_in, num_emb_out)
+        self.linear = nn.Linear(num_emb_in, num_emb_out, bias=bias)
 
     def forward(self, inputs: Tensor) -> Tensor:
         # inputs: (bs, num_emb_in, dim_emb)
@@ -29,6 +29,7 @@ class FactorizationMachineBlock(nn.Module):
         num_hidden: int,
         dim_hidden: int,
         dropout: float,
+        bias: bool = False,
     ) -> None:
         super().__init__()
 
@@ -37,7 +38,7 @@ class FactorizationMachineBlock(nn.Module):
         self.dim_emb = dim_emb
         self.rank = rank
 
-        self.rank_layer = nn.Linear(num_emb_in, rank)
+        self.rank_layer = nn.Linear(num_emb_in, rank, bias=bias)
         self.norm = nn.LayerNorm(num_emb_in * rank)
         self.mlp = MLP(
             dim_in=num_emb_in * rank,
@@ -45,6 +46,7 @@ class FactorizationMachineBlock(nn.Module):
             dim_hidden=dim_hidden,
             dim_out=num_emb_out * dim_emb,
             dropout=dropout,
+            bias=bias,
         )
 
     def forward(self, inputs: Tensor) -> Tensor:
@@ -80,10 +82,11 @@ class WukongLayer(nn.Module):
         num_hidden: int,
         dim_hidden: int,
         dropout: float,
+        bias: bool = False,
     ) -> None:
         super().__init__()
 
-        self.lcb = LinearCompressBlock(num_emb_in, num_emb_lcb)
+        self.lcb = LinearCompressBlock(num_emb_in, num_emb_lcb, bias)
         self.fmb = FactorizationMachineBlock(
             num_emb_in,
             num_emb_fmb,
@@ -92,12 +95,13 @@ class WukongLayer(nn.Module):
             num_hidden,
             dim_hidden,
             dropout,
+            bias,
         )
         self.norm = nn.LayerNorm(dim_emb)
 
         if num_emb_in != num_emb_lcb + num_emb_fmb:
             self.residual_projection = LinearCompressBlock(
-                num_emb_in, num_emb_lcb + num_emb_fmb
+                num_emb_in, num_emb_lcb + num_emb_fmb, bias
             )
         else:
             self.residual_projection = nn.Identity()
@@ -135,6 +139,7 @@ class Wukong(nn.Module):
         dim_hidden_head: int,
         dim_output: int,
         dropout: float = 0.0,
+        bias: bool = False,
     ) -> None:
         super().__init__()
 
@@ -142,7 +147,7 @@ class Wukong(nn.Module):
         self.num_emb_lcb = num_emb_lcb
         self.num_emb_fmb = num_emb_fmb
 
-        self.embedding = Embedding(num_sparse_embs, dim_emb, dim_input_dense)
+        self.embedding = Embedding(num_sparse_embs, dim_emb, dim_input_dense, bias)
 
         num_emb_in = dim_input_sparse + dim_input_dense
         self.interaction_layers = nn.Sequential()
@@ -157,6 +162,7 @@ class Wukong(nn.Module):
                     num_hidden_wukong,
                     dim_hidden_wukong,
                     dropout,
+                    bias,
                 ),
             )
             num_emb_in = num_emb_lcb + num_emb_fmb
@@ -167,6 +173,7 @@ class Wukong(nn.Module):
             dim_hidden_head,
             dim_output,
             dropout,
+            bias,
         )
 
     def forward(self, sparse_inputs: Tensor, dense_inputs) -> Tensor:
