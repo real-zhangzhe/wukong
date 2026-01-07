@@ -14,7 +14,7 @@ class MLP(nn.Sequential):
         layers = []
         for _ in range(num_hidden - 1):
             layers.append(nn.Linear(dim_in, dim_hidden, bias=bias))
-            layers.append(nn.LayerNorm(dim_hidden))
+            layers.append(nn.BatchNorm1d(dim_hidden))
             layers.append(nn.ReLU())
             layers.append(nn.Dropout(dropout))
             dim_in = dim_hidden

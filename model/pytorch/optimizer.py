@@ -24,10 +24,8 @@ class RowWiseAdagrad(Optimizer):
                 grad = p.grad
                 state = self.state[p]
 
-                # 初始化状态：只为每一行存储一个标量（N,）而不是（N, D）
                 if len(state) == 0:
                     state["step"] = 0
-                    # 状态大小等于 Embedding 的行数
                     state["sum"] = torch.zeros(p.data.size(0), device=p.device)
 
                 state["step"] += 1
@@ -35,26 +33,14 @@ class RowWiseAdagrad(Optimizer):
                 eps = group["eps"]
 
                 if grad.is_sparse:
-                    # 处理稀疏梯度（推荐开启 sparse=True）
                     grad = grad.coalesce()
                     indices = grad.indices()[0]
                     values = grad.values()
-
-                    # 计算每行的梯度平方均值 (Row-wise sum of squares / dim)
-                    # 也可以用 sum，但 mean 对不同维度更鲁棒
                     grad_sq_row_mean = values.pow(2).mean(dim=1)
-
-                    # 更新对应行的状态
                     state["sum"].index_add_(0, indices, grad_sq_row_mean)
-
-                    # 获取更新后的标准差
                     std = state["sum"][indices].sqrt().add_(eps)
-
-                    # 原地更新参数
                     p.data.index_add_(0, indices, -clr * values / std.unsqueeze(1))
-
                 else:
-                    # 处理稠密梯度（如果不开启 sparse=True）
                     grad_sq_row_mean = grad.pow(2).mean(dim=1)
                     state["sum"].add_(grad_sq_row_mean)
                     std = state["sum"].sqrt().add_(eps)
