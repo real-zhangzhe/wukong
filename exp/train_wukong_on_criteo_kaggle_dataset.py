@@ -21,6 +21,35 @@ np.random.seed(SEED)
 torch.manual_seed(SEED)
 
 ####################################################################################################
+#                                         CREATE LOGGER                                            #
+####################################################################################################
+now = datetime.now()
+formatted_time = now.strftime("%Y-%m-%d-%H.%M.%S")
+formatter = logging.Formatter(
+    fmt="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+os.makedirs(f"logs/pytorch/{formatted_time}", exist_ok=True)
+file_handler = logging.FileHandler(
+    f"logs/pytorch/{formatted_time}/training.log", mode="a", encoding="utf-8"
+)
+file_handler.setLevel(logging.INFO)
+file_handler.setFormatter(formatter)
+stdout_handler = logging.StreamHandler(sys.stdout)
+stdout_handler.setLevel(logging.INFO)
+stdout_handler.setFormatter(formatter)
+logger = logging.getLogger("wukong_training")
+logger.setLevel(logging.INFO)
+logger.addHandler(file_handler)
+logger.addHandler(stdout_handler)
+writer = SummaryWriter(log_dir=f"logs/pytorch/{formatted_time}/tensorboard")
+os.system("cp " + __file__ + f" logs/pytorch/{formatted_time}/")
+checkpoint_dir = f"logs/pytorch/{formatted_time}/checkpoints"
+SAVE_CHECKPOINTS = False
+if SAVE_CHECKPOINTS:
+    os.makedirs(checkpoint_dir, exist_ok=True)
+
+####################################################################################################
 #                                  DATASET SPECIFIC CONFIGURATION                                  #
 ####################################################################################################
 NPZ_FILE_PATH = "/data/Datasets/criteo-kaggle/kaggleAdDisplayChallenge_processed.npz"  # path to the Criteo Kaggle dataset in .npz format
@@ -62,14 +91,15 @@ DIM_OUTPUT = 1  # dimension of the model output for binary classification
 ####################################################################################################
 NUM_LAYERS = 8  # number of Wukong layers
 DIM_EMB = 128  # dimension of embeddings
-NUM_EMB_LCB = 32  # number of low-rank components for embedding compression in LCB
-NUM_EMB_FMB = 32  # number of factors for multi-branch factorization in FMB
-RANK_FMB = 24  # rank for multi-branch factorization in FMB
+NUM_EMB_LCB = 48  # number of low-rank components for embedding compression in LCB
+NUM_EMB_FMB = 48  # number of factors for multi-branch factorization in FMB
+RANK_FMB = 48  # rank for multi-branch factorization in FMB
 NUM_HIDDEN_WUKONG = 3  # number of hidden layers in Wukong MLPs
-DIM_HIDDEN_WUKONG = 2048  # dimension of hidden layers in Wukong MLPs
+DIM_HIDDEN_WUKONG = 4096  # dimension of hidden layers in Wukong MLPs
 NUM_HIDDEN_HEAD = 2  # number of hidden layers in the final prediction head MLP
 DIM_HIDDEN_HEAD = 256  # dimension of hidden layers in the final prediction head
 DROPOUT = 0.5  # dropout rate
+BIAS = True  # whether to use bias terms in the model
 
 ####################################################################################################
 #                                           CREATE MODEL                                           #
@@ -89,6 +119,7 @@ model = Wukong(
     dim_hidden_head=DIM_HIDDEN_HEAD,
     dim_output=DIM_OUTPUT,
     dropout=DROPOUT,
+    bias=BIAS,
 )
 
 ####################################################################################################
@@ -144,36 +175,6 @@ valid_dataloader = get_dataloader(
     shuffle=False,
     num_workers=4,
 )
-
-####################################################################################################
-#                                         CREATE LOGGER                                            #
-####################################################################################################
-now = datetime.now()
-formatted_time = now.strftime("%Y-%m-%d-%H.%M.%S")
-formatter = logging.Formatter(
-    fmt="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-os.makedirs(f"logs/pytorch/{formatted_time}", exist_ok=True)
-file_handler = logging.FileHandler(
-    f"logs/pytorch/{formatted_time}/training.log", mode="a", encoding="utf-8"
-)
-file_handler.setLevel(logging.INFO)
-file_handler.setFormatter(formatter)
-stdout_handler = logging.StreamHandler(sys.stdout)
-stdout_handler.setLevel(logging.INFO)
-stdout_handler.setFormatter(formatter)
-logger = logging.getLogger("wukong_training")
-logger.setLevel(logging.INFO)
-logger.addHandler(file_handler)
-logger.addHandler(stdout_handler)
-writer = SummaryWriter(log_dir=f"logs/pytorch/{formatted_time}/tensorboard")
-os.system("cp " + __file__ + f" logs/pytorch/{formatted_time}/")
-checkpoint_dir = f"logs/pytorch/{formatted_time}/checkpoints"
-SAVE_CHECKPOINTS = False
-if SAVE_CHECKPOINTS:
-    os.makedirs(checkpoint_dir, exist_ok=True)
-
 
 ####################################################################################################
 #                                          VALID FUNCTION                                          #
