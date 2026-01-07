@@ -1,227 +1,165 @@
-from typing import Any
-
 import tensorflow as tf
-from keras import Model, Sequential
-from keras.layers import Identity, Layer, LayerNormalization
-from tensorflow import Tensor, TensorShape
+from tensorflow.keras import layers, Model
+from typing import List
 
 from model.tensorflow.embedding import Embedding
 from model.tensorflow.mlp import MLP
 
 
-class LinearCompressBlock(Layer):
+class LinearCompressBlock(layers.Layer):
     def __init__(
-        self,
-        num_emb_out: int,
-        weights_initializer: str = "he_uniform",
-        name: str = "lcb",
+        self, num_emb_in: int, num_emb_out: int, bias: bool = False, **kwargs
     ) -> None:
-        super().__init__(name=name)
+        super().__init__(**kwargs)
+        self.num_emb_in = num_emb_in
         self.num_emb_out = num_emb_out
-        self.weights_initializer = weights_initializer
+        self.linear = layers.Dense(num_emb_out, use_bias=bias)
 
-    def build(self, input_shape: TensorShape) -> None:
-        num_emb_in = input_shape[1]
+    def call(self, inputs: tf.Tensor) -> tf.Tensor:
+        # inputs: (bs, num_emb_in, dim_emb)
+        x = tf.transpose(inputs, perm=[0, 2, 1])  # (bs, dim_emb, num_emb_in)
+        x = self.linear(x)  # (bs, dim_emb, num_emb_out)
+        x = tf.transpose(x, perm=[0, 2, 1])  # (bs, num_emb_out, dim_emb)
+        return x
 
-        self.weight = self.add_weight(
-            name="weight",
-            shape=(num_emb_in, self.num_emb_out),
-            initializer=self.weights_initializer,
-            dtype=self.dtype,
-            trainable=True,
-        )
-        self.built = True
-
-    def call(self, inputs: Tensor) -> Tensor:
-        # (bs, num_emb_in, dim_emb) -> (bs, dim_emb, num_emb_in)
-        outputs = tf.transpose(inputs, (0, 2, 1))
-
-        # (bs, dim_emb, num_emb_in) @ (num_emb_in, num_emb_out) -> (bs, dim_emb, num_emb_out)
-        outputs = outputs @ self.weight
-
-        # (bs, dim_emb, num_emb_out) -> (bs, num_emb_out, dim_emb)
-        outputs = tf.transpose(outputs, (0, 2, 1))
-
-        return outputs
-
-    def get_config(self) -> dict[str, Any]:
-        config = super().get_config()
-        config.update(
-            {
-                "num_emb_out": self.num_emb_out,
-                "weights_initializer": self.weights_initializer,
-            }
-        )
-
-        return config
+    def compute_output_shape(self, input_shape):
+        return (input_shape[0], self.num_emb_out, input_shape[2])
 
 
-class FactorizationMachineBlock(Layer):
+class FactorizationMachineBlock(layers.Layer):
+    """TensorFlow implementation of Factorization Machine Block"""
+
     def __init__(
         self,
+        num_emb_in: int,
         num_emb_out: int,
         dim_emb: int,
         rank: int,
         num_hidden: int,
         dim_hidden: int,
         dropout: float,
-        weights_initializer: str = "he_uniform",
-        name: str = "fmb",
+        bias: bool = False,
+        **kwargs,
     ) -> None:
-        super().__init__(name=name)
+        super().__init__(**kwargs)
 
+        self.num_emb_in = num_emb_in
         self.num_emb_out = num_emb_out
         self.dim_emb = dim_emb
         self.rank = rank
-        self.weights_initializer = weights_initializer
 
-        self.norm = LayerNormalization()
+        # Rank layer: (num_emb_in, rank)
+        self.rank_layer = layers.Dense(
+            rank, use_bias=bias, activation=None, name="rank_layer"
+        )
+
+        # Layer normalization
+        self.norm = layers.LayerNormalization(name="layer_norm")
+
+        # MLP for final transformation
         self.mlp = MLP(
+            dim_in=num_emb_in * rank,
             num_hidden=num_hidden,
             dim_hidden=dim_hidden,
             dim_out=num_emb_out * dim_emb,
             dropout=dropout,
+            bias=bias,
         )
 
-    def build(self, input_shape: TensorShape) -> None:
-        self.num_emb_in = input_shape[1]
+    def call(self, inputs: tf.Tensor, training: bool = False) -> tf.Tensor:
+        """
+        Forward pass of the Factorization Machine Block
 
-        self.weight = self.add_weight(
-            name="weight",
-            shape=(self.num_emb_in, self.rank),
-            initializer=self.weights_initializer,
-            dtype=self.dtype,
-            trainable=True,
-        )
-        self.built = True
+        Args:
+            inputs: Tensor of shape (batch_size, num_emb_in, dim_emb)
+            training: Boolean indicating training mode
 
-    def call(self, inputs: Tensor) -> Tensor:
+        Returns:
+            Tensor of shape (batch_size, num_emb_out, dim_emb)
+        """
         # (bs, num_emb_in, dim_emb) -> (bs, dim_emb, num_emb_in)
-        outputs = tf.transpose(inputs, (0, 2, 1))
+        outputs = tf.transpose(inputs, perm=[0, 2, 1])
 
         # (bs, dim_emb, num_emb_in) @ (num_emb_in, rank) -> (bs, dim_emb, rank)
-        outputs = outputs @ self.weight
+        outputs = self.rank_layer(outputs)
 
         # (bs, num_emb_in, dim_emb) @ (bs, dim_emb, rank) -> (bs, num_emb_in, rank)
-        outputs = inputs @ outputs
+        outputs = tf.matmul(inputs, outputs)
 
         # (bs, num_emb_in, rank) -> (bs, num_emb_in * rank)
-        outputs = tf.reshape(outputs, (-1, self.num_emb_in * self.rank))
+        outputs = tf.reshape(outputs, [-1, self.num_emb_in * self.rank])
 
-        # (bs, num_emb_in * rank) -> (bs, num_emb_out * dim_emb)
-        outputs = self.mlp(self.norm(outputs))
+        # Layer normalization
+        outputs = self.norm(outputs)
+
+        # MLP transformation: (bs, num_emb_in * rank) -> (bs, num_emb_out * dim_emb)
+        outputs = self.mlp(outputs, training=training)
 
         # (bs, num_emb_out * dim_emb) -> (bs, num_emb_out, dim_emb)
-        outputs = tf.reshape(outputs, (-1, self.num_emb_out, self.dim_emb))
+        outputs = tf.reshape(outputs, [-1, self.num_emb_out, self.dim_emb])
 
         return outputs
 
-    def get_config(self) -> dict[str, Any]:
+    def get_config(self):
         config = super().get_config()
         config.update(
             {
+                "num_emb_in": self.num_emb_in,
                 "num_emb_out": self.num_emb_out,
                 "dim_emb": self.dim_emb,
                 "rank": self.rank,
-                "weights_initializer": self.weights_initializer,
+                "num_hidden": self.mlp.num_hidden,
+                "dim_hidden": self.mlp.dim_hidden,
+                "dropout": self.mlp.dropout_rate,
+                "bias": self.mlp.use_bias,
             }
         )
-
         return config
 
+    @classmethod
+    def from_config(cls, config):
+        return cls(**config)
 
-class ResidualProjection(Layer):
+
+class WukongLayer(layers.Layer):
     def __init__(
         self,
-        num_emb_out: int,
-        weights_initializer: str = "he_uniform",
-        name: str = "residual_projection",
-    ) -> None:
-        super().__init__(name=name)
-
-        self.num_emb_out = num_emb_out
-        self.weights_initializer = weights_initializer
-
-    def build(self, input_shape: TensorShape) -> None:
-        self.num_emb_in = input_shape[1]
-
-        self.weight = self.add_weight(
-            name="weight",
-            shape=(self.num_emb_in, self.num_emb_out),
-            initializer=self.weights_initializer,
-            dtype=self.dtype,
-            trainable=True,
-        )
-        self.built = True
-
-    def call(self, inputs: Tensor) -> Tensor:
-        # (bs, num_emb_in, dim_emb) -> (bs, dim_emb, num_emb_in)
-        outputs = tf.transpose(inputs, (0, 2, 1))
-
-        # (bs, dim_emb, num_emb_in) @ (num_emb_in, num_emb_out) -> (bs, dim_emb, num_emb_out)
-        outputs = outputs @ self.weight
-
-        # # (bs, dim_emb, num_emb_out) -> (bs, num_emb_out, dim_emb)
-        outputs = tf.transpose(outputs, (0, 2, 1))
-
-        return outputs
-
-    def get_config(self) -> dict[str, Any]:
-        config = super().get_config()
-        config.update(
-            {
-                "num_emb_out": self.num_emb_out,
-                "weights_initializer": self.weights_initializer,
-            }
-        )
-
-        return config
-
-
-class WukongLayer(Layer):
-    def __init__(
-        self,
+        num_emb_in: int,
+        dim_emb: int,
         num_emb_lcb: int,
         num_emb_fmb: int,
         rank_fmb: int,
         num_hidden: int,
         dim_hidden: int,
         dropout: float,
-        name: str = "wukong",
+        bias: bool = False,
+        **kwargs,
     ) -> None:
-        super().__init__(name=name)
+        super().__init__(**kwargs)
 
-        self.num_emb_lcb = num_emb_lcb
-        self.num_emb_fmb = num_emb_fmb
-        self.rank_fmb = rank_fmb
-        self.num_hidden = num_hidden
-        self.dim_hidden = dim_hidden
-        self.dropout = dropout
-        self.norm = LayerNormalization()
-
-    def build(self, input_shape: TensorShape) -> None:
-        num_emb_in, dim_emb = input_shape[-2:]
-
-        self.lcb = LinearCompressBlock(self.num_emb_lcb)
+        self.lcb = LinearCompressBlock(num_emb_in, num_emb_lcb, bias)
         self.fmb = FactorizationMachineBlock(
-            self.num_emb_fmb,
+            num_emb_in,
+            num_emb_fmb,
             dim_emb,
-            self.rank_fmb,
-            self.num_hidden,
-            self.dim_hidden,
-            self.dropout,
+            rank_fmb,
+            num_hidden,
+            dim_hidden,
+            dropout,
+            bias,
         )
+        self.norm = layers.LayerNormalization(
+            axis=-1
+        )  # normalize over feature dimension
 
-        if num_emb_in != self.num_emb_lcb + self.num_emb_fmb:
-            self.residual_projection = ResidualProjection(
-                self.num_emb_lcb + self.num_emb_fmb
+        if num_emb_in != num_emb_lcb + num_emb_fmb:
+            self.residual_projection = LinearCompressBlock(
+                num_emb_in, num_emb_lcb + num_emb_fmb, bias
             )
         else:
-            self.residual_projection = Identity()
+            self.residual_projection = layers.Lambda(lambda x: x)
 
-        self.built = True
-
-    def call(self, inputs: Tensor) -> Tensor:
+    def call(self, inputs: tf.Tensor) -> tf.Tensor:
         # (bs, num_emb_in, dim_emb) -> (bs, num_emb_lcb, dim_emb)
         lcb = self.lcb(inputs)
 
@@ -232,32 +170,27 @@ class WukongLayer(Layer):
         outputs = tf.concat((fmb, lcb), axis=1)
 
         # (bs, num_emb_lcb + num_emb_fmb, dim_emb) -> (bs, num_emb_lcb + num_emb_fmb, dim_emb)
-        outputs = self.norm(outputs + self.residual_projection(inputs))
+        residual = self.residual_projection(inputs)
+        outputs = self.norm(outputs + residual)
 
         return outputs
 
-    def get_config(self) -> dict[str, Any]:
-        config = super().get_config()
-        config.update(
-            {
-                "num_emb_lcb": self.num_emb_lcb,
-                "num_emb_fmb": self.num_emb_fmb,
-                "rank_fmb": self.rank_fmb,
-                "num_hidden": self.num_hidden,
-                "dim_hidden": self.dim_hidden,
-                "dropout": self.dropout,
-            }
+    def compute_output_shape(self, input_shape):
+        return (
+            input_shape[0],
+            self.lcb.num_emb_out + self.fmb.num_emb_out,
+            input_shape[2],
         )
-
-        return config
 
 
 class Wukong(Model):
     def __init__(
         self,
         num_layers: int,
-        num_sparse_emb: int,
+        num_sparse_embs: List[int],
         dim_emb: int,
+        dim_input_sparse: int,
+        dim_input_dense: int,
         num_emb_lcb: int,
         num_emb_fmb: int,
         rank_fmb: int,
@@ -267,42 +200,78 @@ class Wukong(Model):
         dim_hidden_head: int,
         dim_output: int,
         dropout: float = 0.0,
+        bias: bool = False,
+        **kwargs,
     ) -> None:
-        super().__init__()
+        super().__init__(**kwargs)
 
         self.dim_emb = dim_emb
         self.num_emb_lcb = num_emb_lcb
         self.num_emb_fmb = num_emb_fmb
 
-        self.embedding = Embedding(num_sparse_emb, dim_emb)
+        self.embedding = Embedding(num_sparse_embs, dim_emb, dim_input_dense, bias)
 
-        self.interaction_layers = Sequential()
-        for i in range(num_layers):
-            self.interaction_layers.add(
-                WukongLayer(
-                    num_emb_lcb,
-                    num_emb_fmb,
-                    rank_fmb,
-                    num_hidden_wukong,
-                    dim_hidden_wukong,
-                    dropout,
-                    name=f"wukong_{i}",
-                ),
+        num_emb_in = dim_input_sparse + dim_input_dense
+        self.interaction_layers = []
+        for _ in range(num_layers):
+            layer = WukongLayer(
+                num_emb_in,
+                dim_emb,
+                num_emb_lcb,
+                num_emb_fmb,
+                rank_fmb,
+                num_hidden_wukong,
+                dim_hidden_wukong,
+                dropout,
+                bias,
             )
+            self.interaction_layers.append(layer)
+            num_emb_in = num_emb_lcb + num_emb_fmb
 
         self.projection_head = MLP(
+            (num_emb_lcb + num_emb_fmb) * dim_emb,
             num_hidden_head,
             dim_hidden_head,
             dim_output,
             dropout,
+            bias,
         )
 
-    def call(self, inputs: list[Tensor]) -> Tensor:
-        outputs = self.embedding(inputs)
-        outputs = self.interaction_layers(outputs)
+        # 将层添加到模型中，确保它们被正确跟踪
+        self._layers = (
+            [self.embedding] + self.interaction_layers + [self.projection_head]
+        )
+        self.output_names = ["output"]
+
+    def call(self, inputs) -> tf.Tensor:
+        sparse_inputs, dense_inputs = inputs
+        outputs = self.embedding(sparse_inputs, dense_inputs)
+
+        for layer in self.interaction_layers:
+            outputs = layer(outputs)
+
         outputs = tf.reshape(
-            outputs, (-1, (self.num_emb_lcb + self.num_emb_fmb) * self.dim_emb)
+            outputs, [-1, (self.num_emb_lcb + self.num_emb_fmb) * self.dim_emb]
         )
         outputs = self.projection_head(outputs)
 
         return outputs
+
+    def build(self, input_shape):
+        sparse_shape, dense_shape = input_shape
+
+        self.embedding.build([sparse_shape, dense_shape])
+
+        dummy_sparse = tf.zeros(sparse_shape)
+        dummy_dense = tf.zeros(dense_shape)
+        emb_output = self.embedding(dummy_sparse, dummy_dense)
+
+        current_output = emb_output
+        for layer in self.interaction_layers:
+            layer.build(current_output.shape)
+            current_output = layer(current_output)
+
+        final_shape = [-1, (self.num_emb_lcb + self.num_emb_fmb) * self.dim_emb]
+        self.projection_head.build(final_shape)
+
+        super().build(input_shape)

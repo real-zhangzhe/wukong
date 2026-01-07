@@ -1,49 +1,28 @@
-from typing import Any
-
-from keras import Sequential
-from keras.layers import BatchNormalization, Dense, Dropout, ReLU
+import tensorflow as tf
 
 
-class MLP(Sequential):
+class MLP(tf.keras.Sequential):
     def __init__(
         self,
+        dim_in: int,
         num_hidden: int,
         dim_hidden: int,
         dim_out: int | None = None,
         dropout: float = 0.0,
-        name: str = "MLP",
+        bias: bool = False,
     ) -> None:
-        self.num_hidden = num_hidden
-        self.dim_hidden = dim_hidden
-        self.dim_out = dim_out
-        self.dropout = dropout
-
         layers = []
-        for _ in range(num_hidden - 1):
-            layers.append(Dense(dim_hidden, kernel_initializer="he_uniform"))
-            layers.append(BatchNormalization())
-            layers.append(ReLU())
 
-            if 0.0 < dropout < 1.0:
-                layers.append(Dropout(dropout))
+        for _ in range(num_hidden - 1):
+            layers.append(tf.keras.layers.Dense(units=dim_hidden, use_bias=bias))
+            layers.append(tf.keras.layers.BatchNormalization())
+            layers.append(tf.keras.layers.ReLU())
+            layers.append(tf.keras.layers.Dropout(dropout))
+            dim_in = dim_hidden
 
         if dim_out:
-            layers.append(Dense(dim_out, kernel_initializer="he_uniform"))
+            layers.append(tf.keras.layers.Dense(units=dim_out, use_bias=bias))
         else:
-            layers.append(Dense(dim_hidden, kernel_initializer="he_uniform"))
+            layers.append(tf.keras.layers.Dense(units=dim_hidden, use_bias=bias))
 
-        super().__init__(layers, name=name)
-
-    def get_config(self) -> dict[str, Any]:
-        config = super().get_config()
-        config.update(
-            {
-                "num_hidden": self.num_hidden,
-                "dim_hidden": self.dim_hidden,
-                "dim_out": self.dim_out,
-                "dropout": self.dropout,
-                "name": self.name,
-            }
-        )
-
-        return config
+        super().__init__(layers)

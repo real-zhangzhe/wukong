@@ -9,7 +9,6 @@ def get_criteo_tf_dataset(
     shuffle: bool = True,
     seed: int = 42,
 ) -> tf.data.Dataset:
-
     print(f"Loading data from {npz_file_path} for split: {split}...")
     with np.load(npz_file_path) as data:
         raw_y = data["y"].astype(np.int32)
