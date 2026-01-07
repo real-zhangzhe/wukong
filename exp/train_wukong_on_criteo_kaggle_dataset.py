@@ -42,6 +42,7 @@ logger = logging.getLogger("wukong_training")
 logger.setLevel(logging.INFO)
 logger.addHandler(file_handler)
 logger.addHandler(stdout_handler)
+LOGGER_PRINT_INTERVAL = 10
 writer = SummaryWriter(log_dir=f"logs/pytorch/{formatted_time}/tensorboard")
 os.system("cp " + __file__ + f" logs/pytorch/{formatted_time}/")
 checkpoint_dir = f"logs/pytorch/{formatted_time}/checkpoints"
@@ -96,10 +97,10 @@ NUM_EMB_FMB = 32  # number of factors for multi-branch factorization in FMB
 RANK_FMB = 24  # rank for multi-branch factorization in FMB
 NUM_HIDDEN_WUKONG = 3  # number of hidden layers in Wukong MLPs
 DIM_HIDDEN_WUKONG = 2048  # dimension of hidden layers in Wukong MLPs
-NUM_HIDDEN_HEAD = 2  # number of hidden layers in the final prediction head MLP
+NUM_HIDDEN_HEAD = 2  # number of hidden layers in the final prediction head MLPs
 DIM_HIDDEN_HEAD = 256  # dimension of hidden layers in the final prediction head
 DROPOUT = 0.5  # dropout rate
-BIAS = True  # whether to use bias terms in the model
+BIAS = False  # whether to use bias terms in the model
 
 ####################################################################################################
 #                                           CREATE MODEL                                           #
@@ -176,6 +177,7 @@ valid_dataloader = get_dataloader(
     num_workers=4,
 )
 
+
 ####################################################################################################
 #                                          VALID FUNCTION                                          #
 ####################################################################################################
@@ -215,7 +217,7 @@ for epoch in range(TRAIN_EPOCHS):
         other_optimizer.step()
         embedding_optimizer_lr_scheduler.step()
         other_optimizer_lr_scheduler.step()
-        if (batch_idx + 1) % 100 == 0:
+        if (batch_idx + 1) % LOGGER_PRINT_INTERVAL == 0:
             logger.info(
                 f"Epoch [{epoch+1}/{TRAIN_EPOCHS}], "
                 f"Batch [{batch_idx+1}/{len(train_dataloader)}], "
