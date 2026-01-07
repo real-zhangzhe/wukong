@@ -60,7 +60,7 @@ DIM_OUTPUT = 1  # dimension of the model output for binary classification
 ####################################################################################################
 #                                   MODEL SPECIFIC CONFIGURATION                                   #
 ####################################################################################################
-NUM_LAYERS = 8  # number of Wukong layers
+NUM_LAYERS = 4  # number of Wukong layers
 DIM_EMB = 128  # dimension of embeddings
 NUM_EMB_LCB = 32  # number of low-rank components for embedding compression in LCB
 NUM_EMB_FMB = 32  # number of factors for multi-branch factorization in FMB
