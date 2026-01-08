@@ -241,6 +241,7 @@ class Wukong(Model):
         self._layers = (
             [self.embedding] + self.interaction_layers + [self.projection_head]
         )
+        # for exporting to ONNX
         self.output_names = ["output"]
 
     def call(self, inputs) -> tf.Tensor:
