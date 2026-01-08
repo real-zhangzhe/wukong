@@ -2,12 +2,11 @@ import tensorflow as tf
 import numpy as np
 
 
-def get_criteo_tf_dataset(
+def get_dataset(
     npz_file_path: str,
     split: str = "train",
     batch_size: int = 1024,
     shuffle: bool = True,
-    seed: int = 42,
 ) -> tf.data.Dataset:
     print(f"Loading data from {npz_file_path} for split: {split}...")
     with np.load(npz_file_path) as data:
@@ -37,7 +36,6 @@ def get_criteo_tf_dataset(
     if shuffle and split == "train":
         print("Shuffling data in memory...")
         indices = np.arange(len(labels))
-        np.random.seed(seed)
         np.random.shuffle(indices)
 
         labels = labels[indices]

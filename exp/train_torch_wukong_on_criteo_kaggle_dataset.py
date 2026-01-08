@@ -8,7 +8,6 @@ import os
 from torch.utils.tensorboard import SummaryWriter
 
 from model.pytorch.wukong import Wukong
-from model.pytorch.optimizer import RowWiseAdagrad
 from data.pytorch.criteo_kaggle_dataset import get_dataloader
 
 
@@ -144,9 +143,9 @@ other_parameters = [
     for name, param in model.named_parameters()
     if "embedding.sparse_embedding" not in name
 ]
-embedding_optimizer = RowWiseAdagrad(
+embedding_optimizer = torch.optim.SGD(
     embedding_parameters, lr=PEAK_LR
-)  # RowWiseAdagrad optimizer for embeddings
+)  # SGD optimizer for embeddings
 other_optimizer = torch.optim.Adam(other_parameters, lr=PEAK_LR)  # Adam optimizer
 embedding_optimizer_lr_scheduler = torch.optim.lr_scheduler.LinearLR(
     embedding_optimizer,
