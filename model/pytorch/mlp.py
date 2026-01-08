@@ -7,7 +7,7 @@ class MLP(nn.Sequential):
         dim_in: int,
         num_hidden: int,
         dim_hidden: int,
-        dim_out: int | None = None,
+        dim_out: int,
         dropout: float = 0.0,
         bias: bool = False,
     ) -> None:
@@ -19,9 +19,6 @@ class MLP(nn.Sequential):
             layers.append(nn.Dropout(dropout))
             dim_in = dim_hidden
 
-        if dim_out:
-            layers.append(nn.Linear(dim_in, dim_out, bias=bias))
-        else:
-            layers.append(nn.Linear(dim_in, dim_hidden, bias=bias))
+        layers.append(nn.Linear(dim_in, dim_out, bias=bias))
 
         super().__init__(*layers)

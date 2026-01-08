@@ -7,7 +7,7 @@ class MLP(tf.keras.Sequential):
         dim_in: int,
         num_hidden: int,
         dim_hidden: int,
-        dim_out: int | None = None,
+        dim_out: int,
         dropout: float = 0.0,
         bias: bool = False,
     ) -> None:
@@ -18,11 +18,7 @@ class MLP(tf.keras.Sequential):
             layers.append(tf.keras.layers.BatchNormalization())
             layers.append(tf.keras.layers.ReLU())
             layers.append(tf.keras.layers.Dropout(dropout))
-            dim_in = dim_hidden
 
-        if dim_out:
-            layers.append(tf.keras.layers.Dense(units=dim_out, use_bias=bias))
-        else:
-            layers.append(tf.keras.layers.Dense(units=dim_hidden, use_bias=bias))
+        layers.append(tf.keras.layers.Dense(units=dim_out, use_bias=bias))
 
         super().__init__(layers)
