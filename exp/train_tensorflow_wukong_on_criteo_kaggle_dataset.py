@@ -172,10 +172,17 @@ embedding_parameters = []
 other_parameters = []
 
 for var in model.trainable_variables:
-    if "sparse_embedding" in var.path and "embeddings" in var.name:
-        embedding_parameters.append(var)
+    if hasattr(var, "path"):
+        # path is available in TF 2.13+
+        if "sparse_embedding" in var.path and "embeddings" in var.name:
+            embedding_parameters.append(var)
+        else:
+            other_parameters.append(var)
     else:
-        other_parameters.append(var)
+        if "sparse_embedding" in var.name:
+            embedding_parameters.append(var)
+        else:
+            other_parameters.append(var)
 
 logger.info(f"Number of embedding parameters: {len(embedding_parameters)}")
 logger.info(f"Number of other parameters: {len(other_parameters)}")
