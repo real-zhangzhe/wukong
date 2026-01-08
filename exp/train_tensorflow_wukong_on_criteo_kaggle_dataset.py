@@ -7,6 +7,7 @@ from datetime import datetime
 import os
 
 from model.tensorflow.wukong import Wukong
+from model.tensorflow.lr_schedule import LinearWarmup
 from data.tensorflow.criteo_kaggle_dataset import get_dataset
 
 ####################################################################################################
@@ -134,30 +135,6 @@ INIT_LR = 1e-8
 TOTAL_STEPS_PER_EPOCH = 39291958 // BATCH_SIZE
 TOTAL_ITERS = TOTAL_STEPS_PER_EPOCH
 
-
-class LinearWarmup(tf.keras.optimizers.schedules.LearningRateSchedule):
-    def __init__(self, initial_learning_rate, peak_learning_rate, warmup_steps):
-        super(LinearWarmup, self).__init__()
-        self.initial_learning_rate = initial_learning_rate
-        self.peak_learning_rate = peak_learning_rate
-        self.warmup_steps = warmup_steps
-
-    def __call__(self, step):
-        scale = step / self.warmup_steps
-        scale = tf.minimum(scale, 1.0)
-        return (
-            self.initial_learning_rate
-            + (self.peak_learning_rate - self.initial_learning_rate) * scale
-        )
-
-    def get_config(self):
-        return {
-            "initial_learning_rate": self.initial_learning_rate,
-            "peak_learning_rate": self.peak_learning_rate,
-            "warmup_steps": self.warmup_steps,
-        }
-
-
 lr_schedule = LinearWarmup(
     initial_learning_rate=INIT_LR, peak_learning_rate=PEAK_LR, warmup_steps=TOTAL_ITERS
 )
@@ -189,13 +166,13 @@ valid_dataset = get_dataset(
 # TF Lazy Execution
 dummy_sparse = tf.zeros((1, NUM_CAT_FEATURES), dtype=tf.int32)
 dummy_dense = tf.zeros((1, NUM_DENSE_FEATURES), dtype=tf.float32)
-_ = model(dummy_sparse, dummy_dense)
+_ = model((dummy_sparse, dummy_dense))
 
 embedding_parameters = []
 other_parameters = []
 
 for var in model.trainable_variables:
-    if "sparse_embedding" in var.name:
+    if "sparse_embedding" in var.path and "embeddings" in var.name:
         embedding_parameters.append(var)
     else:
         other_parameters.append(var)
@@ -213,8 +190,8 @@ def validate(model, dataset):
     pos_samples = 0
     pos_correct = 0
 
-    for sparse_inputs, dense_inputs, labels in dataset:
-        outputs = model(sparse_inputs, dense_inputs, training=False)
+    for inputs, labels in dataset:
+        outputs = model(inputs, training=False)
 
         labels = tf.cast(labels, tf.float32)
         outputs = tf.squeeze(outputs)
@@ -239,9 +216,9 @@ def validate(model, dataset):
 #                                         TRAINING STEP                                            #
 ####################################################################################################
 @tf.function
-def train_step(sparse_inputs, dense_inputs, labels, step_counter):
+def train_step(inputs, labels):
     with tf.GradientTape() as tape:
-        outputs = model(sparse_inputs, dense_inputs, training=True)
+        outputs = model(inputs, training=True)
         loss = criterion(labels, tf.squeeze(outputs))
 
     grads = tape.gradient(loss, model.trainable_variables)
@@ -250,7 +227,7 @@ def train_step(sparse_inputs, dense_inputs, labels, step_counter):
 
     for grad, var in zip(grads, model.trainable_variables):
         if grad is not None:
-            if "sparse_embedding" in var.name:
+            if "sparse_embedding" in var.path and "embeddings" in var.name:
                 emb_grads.append((grad, var))
             else:
                 other_grads.append((grad, var))
@@ -271,12 +248,10 @@ other_lr_metric = tf.keras.metrics.Mean()
 for epoch in range(TRAIN_EPOCHS):
     logger.info(f"Starting Epoch {epoch+1}/{TRAIN_EPOCHS}")
 
-    for batch_idx, (sparse_inputs, dense_inputs, labels) in enumerate(train_dataset):
+    for batch_idx, (inputs, labels) in enumerate(train_dataset):
         labels = tf.cast(labels, tf.float32)
 
-        loss = train_step(
-            sparse_inputs, dense_inputs, labels, tf.constant(step, dtype=tf.int64)
-        )
+        loss = train_step(inputs, labels)
         current_lr = lr_schedule(step)
 
         if (batch_idx + 1) % LOGGER_PRINT_INTERVAL == 0:
