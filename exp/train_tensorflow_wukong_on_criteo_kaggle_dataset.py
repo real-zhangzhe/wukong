@@ -234,11 +234,17 @@ def train_step(inputs, labels):
 
     for grad, var in zip(grads, model.trainable_variables):
         if grad is not None:
-            if "sparse_embedding" in var.path and "embeddings" in var.name:
-                emb_grads.append((grad, var))
+            if hasattr(var, "path"):
+                # path is available in TF 2.13+
+                if "sparse_embedding" in var.path and "embeddings" in var.name:
+                    emb_grads.append((grad, var))
+                else:
+                    other_grads.append((grad, var))
             else:
-                other_grads.append((grad, var))
-
+                if "sparse_embedding" in var.name:
+                    emb_grads.append((grad, var))
+                else:
+                    other_grads.append((grad, var))
     embedding_optimizer.apply_gradients(emb_grads)
     other_optimizer.apply_gradients(other_grads)
 
