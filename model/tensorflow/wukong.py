@@ -274,5 +274,3 @@ class Wukong(Model):
 
         final_shape = [None, (self.num_emb_lcb + self.num_emb_fmb) * self.dim_emb]
         self.projection_head.build(final_shape)
-
-        super().build(input_shape)
