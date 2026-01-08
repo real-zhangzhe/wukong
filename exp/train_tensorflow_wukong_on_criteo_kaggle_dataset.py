@@ -91,15 +91,15 @@ DIM_OUTPUT = 1
 ####################################################################################################
 #                                   MODEL SPECIFIC CONFIGURATION                                   #
 ####################################################################################################
-NUM_LAYERS = 8
-DIM_EMB = 128
-NUM_EMB_LCB = 32
-NUM_EMB_FMB = 32
+NUM_LAYERS = 1
+DIM_EMB = 16
+NUM_EMB_LCB = 8
+NUM_EMB_FMB = 8
 RANK_FMB = 24
-NUM_HIDDEN_WUKONG = 3
-DIM_HIDDEN_WUKONG = 2048
+NUM_HIDDEN_WUKONG = 2
+DIM_HIDDEN_WUKONG = 32
 NUM_HIDDEN_HEAD = 2
-DIM_HIDDEN_HEAD = 256
+DIM_HIDDEN_HEAD = 32
 DROPOUT = 0.5
 BIAS = False
 
