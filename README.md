@@ -6,88 +6,37 @@
 
 # Wukong for large-scale recommendation
 
-Unofficial implementation of the paper [Wukong: Towards a Scaling Law for Large-Scale Recommendation](https://arxiv.org/abs/2403.02545v1) from Meta.
+Unofficial implementation of the paper [Wukong: Towards a Scaling Law for Large-Scale Recommendation](https://arxiv.org/abs/2403.02545) from Meta.
 
 It presents a novel state-of-the-art architecture for recommendation systems that additionally follows a similar scaling law of large language models, where the model performance seems to increase with respect to the model scale without a clear asymptote on the scales explored in the paper.
 
 This repository contains implementations for both Pytorch and Tensoflow.
 
+## install
+```bash
+pip install -r requirement.txt
+```
+
 ## Usage <a name = "usage"></a>
 
 ### Pytorch
 
-```python
-import torch
-from model.pytorch import WukongTorch
+```bash
+# export to onnx
+python3 -m exp.export_torch_to_onnx
 
-
-# mock input data
-BATCH_SIZE = 1024
-NUM_EMBEDDING = 10_000 # vocab size
-NUM_CAT_FEATURES = 32
-NUM_DENSE_FEATURES = 16
-
-sparse_inputs = torch.multinomial(
-    torch.rand((BATCH_SIZE, NUM_EMBEDDING)),
-    NUM_CAT_FEATURES,
-    replacement=True,
-)
-dense_inputs = torch.rand(BATCH_SIZE, NUM_DENSE_FEATURES)
-
-# takes hyperparameters from the paper
-model = WukongTorch(
-    num_layers=3,
-    num_emb=NUM_EMBEDDING,
-    dim_emb=128,
-    dim_input_sparse=NUM_CAT_FEATURES,
-    dim_input_dense=NUM_DENSE_FEATURES,
-    num_emb_lcb=16,
-    num_emb_fmb=16,
-    rank_fmb=24,
-    num_hidden_wukong=2,
-    dim_hidden_wukong=512,
-    num_hidden_head=2,
-    dim_hidden_head=512,
-    dim_output=1,
-)
-
-# outputs are the logits and will need to be rescaled with a sigmoid to get a probability
-outputs = model(sparse_inputs, dense_inputs)
+# train on criteo kaggle dataset by torch
+python3 -m exp.train_torch_wukong_on_criteo_kaggle_dataset
 ```
 
 ### Tensorflow
 
-```python
-import tensorflow as tf
-from model.tensorflow import WukongTf
+```bash
+# export to onnx
+python3 -m exp.export_tensorflow_to_onnx
 
-
-BATCH_SIZE = 1024
-NUM_EMBEDDING = 10_000
-NUM_CAT_FEATURES = 32
-NUM_DENSE_FEATURES = 16
-
-inputs = [
-    tf.random.categorical(tf.random.uniform((BATCH_SIZE, NUM_EMBEDDING)), NUM_CAT_FEATURES, dtype=tf.int32),
-    tf.random.uniform((BATCH_SIZE, NUM_DENSE_FEATURES)),
-]
-
-model = WukongTf(
-    num_layers=2,
-    num_sparse_emb=NUM_EMBEDDING,
-    dim_emb=128,
-    num_emb_lcb=16,
-    num_emb_fmb=16,
-    rank_fmb=8,
-    num_hidden_wukong=2,
-    dim_hidden_wukong=16,
-    num_hidden_head=2,
-    dim_hidden_head=32,
-    dim_output=1,
-    dropout=0.0,
-)
-
-outputs = model(inputs)
+# train on criteo kaggle dataset by tensorflow
+python3 -m exp.train_tensorflow_wukong_on_criteo_kaggle_dataset
 ```
 
 ## Citations

@@ -1,0 +1,4 @@
+tensorflow
+tf2onnx
+onnx
+protobuf==6.33.2
