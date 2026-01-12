@@ -1,4 +1,4 @@
-tensorflow
+tensorflow-gpu==2.4.0
 tf2onnx
 onnx
 protobuf==6.33.2
