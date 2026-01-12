@@ -176,7 +176,6 @@ valid_dataloader = get_dataloader(
     num_workers=4,
 )
 
-
 ####################################################################################################
 #                                          VALID FUNCTION                                          #
 ####################################################################################################
@@ -199,7 +198,6 @@ def validate(model, dataloader):
     accuracy = num_correct / num_samples if num_samples > 0 else 0
     recall_pos = pos_correct / pos_samples if pos_samples > 0 else 0
     return accuracy, num_samples, recall_pos, pos_samples
-
 
 ####################################################################################################
 #                                           TRAINING LOOP                                          #
