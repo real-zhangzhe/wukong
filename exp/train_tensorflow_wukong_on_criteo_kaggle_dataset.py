@@ -188,6 +188,7 @@ for var in model.trainable_variables:
 logger.info(f"Number of embedding parameters: {len(embedding_parameters)}")
 logger.info(f"Number of other parameters: {len(other_parameters)}")
 
+
 ####################################################################################################
 #                                          VALID FUNCTION                                          #
 ####################################################################################################
@@ -217,6 +218,7 @@ def validate(model, dataset):
     accuracy = num_correct / num_samples if num_samples > 0 else 0
     recall_pos = pos_correct / pos_samples if pos_samples > 0 else 0
     return accuracy, num_samples, recall_pos, pos_samples
+
 
 ####################################################################################################
 #                                         TRAINING STEP                                            #
@@ -248,6 +250,7 @@ def train_step(inputs, labels):
     other_optimizer.apply_gradients(other_grads)
 
     return loss
+
 
 ####################################################################################################
 #                                           TRAINING LOOP                                          #

@@ -100,6 +100,7 @@ NUM_HIDDEN_HEAD = 2  # number of hidden layers in the final prediction head MLPs
 DIM_HIDDEN_HEAD = 256  # dimension of hidden layers in the final prediction head
 DROPOUT = 0.5  # dropout rate
 BIAS = False  # whether to use bias terms in the model
+DTYPE = torch.float16  # data type for model parameters and computations
 
 ####################################################################################################
 #                                           CREATE MODEL                                           #
@@ -125,7 +126,8 @@ model = Wukong(
 ####################################################################################################
 #                                  TRAINING SPECIFIC CONFIGURATION                                 #
 ####################################################################################################
-DEVICE = torch.device("musa")
+DEVICE_STR = "musa"
+DEVICE = torch.device(DEVICE_STR)
 BATCH_SIZE = 16384  # training batch size
 TRAIN_EPOCHS = 10  # number of training epochs
 PEAK_LR = 0.004  # peak learning rate
@@ -176,6 +178,7 @@ valid_dataloader = get_dataloader(
     num_workers=4,
 )
 
+
 ####################################################################################################
 #                                          VALID FUNCTION                                          #
 ####################################################################################################
@@ -199,21 +202,45 @@ def validate(model, dataloader):
     recall_pos = pos_correct / pos_samples if pos_samples > 0 else 0
     return accuracy, num_samples, recall_pos, pos_samples
 
+
 ####################################################################################################
 #                                           TRAINING LOOP                                          #
 ####################################################################################################
+scaler = torch.amp.GradScaler(DEVICE_STR, enabled=(torch.float16 == DTYPE))
 model.to(DEVICE).train()
+logger.info("Use device: " + DEVICE_STR)
+logger.info("Use dtype: " + str(DTYPE))
 step = 0
 for epoch in range(TRAIN_EPOCHS):
     for batch_idx, (sparse_inputs, dense_inputs, labels) in enumerate(train_dataloader):
-        outputs = model(sparse_inputs.to(DEVICE), dense_inputs.to(DEVICE))
-        loss = critrion(outputs.squeeze(), labels.to(DEVICE).to(torch.float32))
-        model.zero_grad()
-        loss.backward()
-        embedding_optimizer.step()
-        other_optimizer.step()
-        embedding_optimizer_lr_scheduler.step()
-        other_optimizer_lr_scheduler.step()
+        if torch.float16 == DTYPE:
+            with torch.amp.autocast(DEVICE_STR):
+                outputs = model(
+                    sparse_inputs.to(DEVICE),
+                    dense_inputs.to(DEVICE).to(torch.float16),
+                )
+                loss = critrion(
+                    outputs.squeeze(),
+                    labels.to(DEVICE).to(torch.float16),
+                )
+            model.zero_grad(set_to_none=True)
+            scaler.scale(loss).backward()
+            scaler.step(embedding_optimizer)
+            scaler.step(other_optimizer)
+            scaler.update()
+            embedding_optimizer_lr_scheduler.step()
+            other_optimizer_lr_scheduler.step()
+        elif torch.float32 == DTYPE:
+            outputs = model(sparse_inputs.to(DEVICE), dense_inputs.to(DEVICE))
+            loss = critrion(outputs.squeeze(), labels.to(DEVICE).to(torch.float32))
+            model.zero_grad()
+            loss.backward()
+            embedding_optimizer.step()
+            other_optimizer.step()
+            embedding_optimizer_lr_scheduler.step()
+            other_optimizer_lr_scheduler.step()
+        else:
+            raise ValueError("Unsupported DTYPE. Use torch.float16 or torch.float32.")
         if (batch_idx + 1) % LOGGER_PRINT_INTERVAL == 0:
             logger.info(
                 f"Epoch [{epoch+1}/{TRAIN_EPOCHS}], "
