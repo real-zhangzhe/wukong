@@ -270,6 +270,7 @@ class Wukong(Model):
         self._layers = (
             [self.embedding] + self.interaction_layers + [self.projection_head]
         )
+        self.prob = tf.keras.layers.Activation("sigmoid")
         # for exporting to ONNX
         self.output_names = ["output"]
 
@@ -285,7 +286,7 @@ class Wukong(Model):
         )
         outputs = self.projection_head(outputs)
 
-        return outputs
+        return self.prob(outputs)
 
     def build(self, input_shape):
         sparse_shape, dense_shape = input_shape

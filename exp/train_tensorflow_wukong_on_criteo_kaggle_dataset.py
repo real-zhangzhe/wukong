@@ -141,7 +141,7 @@ lr_schedule = LinearWarmup(
 )
 embedding_optimizer = tf.keras.optimizers.SGD(learning_rate=lr_schedule)
 other_optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
-criterion = tf.keras.losses.BinaryCrossentropy(from_logits=True)
+criterion = tf.keras.losses.BinaryCrossentropy(from_logits=False)
 
 ####################################################################################################
 #                                       CREATE DATALOADER                                          #
@@ -204,7 +204,7 @@ def validate(model, dataset):
         labels = tf.cast(labels, tf.float32)
         outputs = tf.squeeze(outputs)
 
-        predictions = tf.cast(outputs >= 0, tf.float32)
+        predictions = tf.cast(outputs >= 0.5, tf.float32)
 
         num_samples += labels.shape[0]
         pos_samples += tf.reduce_sum(labels).numpy()
