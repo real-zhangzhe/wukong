@@ -6,6 +6,34 @@ from model.tensorflow.embedding import Embedding
 from model.tensorflow.mlp import MLP
 
 
+class LayerNorm(layers.Layer):
+    def __init__(self, axis=-1, min_std=1e-11, max_std=1e7, **kwargs):
+        super().__init__(**kwargs)
+        self.axis = axis
+        self.min_std = min_std
+        self.max_std = max_std
+
+    def call(self, inputs):
+        # Mean
+        mean = tf.reduce_mean(inputs, axis=self.axis, keepdims=True)
+
+        # Center
+        centered = inputs - mean
+
+        # Variance
+        var = tf.reduce_mean(tf.square(centered), axis=self.axis, keepdims=True)
+
+        # Std
+        std = tf.sqrt(var)
+
+        # Clamp (完全对应 Minimum + Maximum)
+        std = tf.minimum(std, self.max_std)
+        std = tf.maximum(std, self.min_std)
+
+        # Normalize
+        return centered / std
+
+
 class LinearCompressBlock(layers.Layer):
     def __init__(
         self, num_emb_in: int, num_emb_out: int, bias: bool = False, **kwargs
@@ -54,7 +82,7 @@ class FactorizationMachineBlock(layers.Layer):
         )
 
         # Layer normalization
-        self.norm = layers.LayerNormalization(name="layer_norm")
+        self.norm = LayerNorm(name="layer_norm")
 
         # MLP for final transformation
         self.mlp = MLP(
@@ -200,7 +228,7 @@ class Wukong(Model):
         dim_hidden_head: int,
         dim_output: int,
         dropout: float = 0.0,
-        bias: bool = False,
+        bias: bool = True,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -235,6 +263,7 @@ class Wukong(Model):
             dim_output,
             dropout,
             bias,
+            activation=tf.keras.layers.ReLU(),
         )
 
         # 将层添加到模型中，确保它们被正确跟踪
