@@ -1,6 +1,12 @@
 import numpy as np
 import tensorflow as tf
+from tensorflow.python.framework.convert_to_constants import (
+    convert_variables_to_constants_v2,
+)
+from tensorflow.python.tools.optimize_for_inference_lib import optimize_for_inference
+
 from model.tensorflow.wukong import Wukong
+
 
 BATCH_SIZE = 2
 NUM_CAT_FEATURES = 26
@@ -68,16 +74,24 @@ def inference(sparse_inputs, dense_inputs):
 concrete_func = inference.get_concrete_function()
 
 # 冻结变量
-from tensorflow.python.framework.convert_to_constants import (
-    convert_variables_to_constants_v2,
-)
-
 frozen_func = convert_variables_to_constants_v2(concrete_func)
 graph_def = frozen_func.graph.as_graph_def()
 
+# 2. inference 优化（关键）
+optimized_graph_def = optimize_for_inference(
+    graph_def,
+    input_node_names=[
+        "sparse_inputs",
+        "dense_inputs",
+    ],
+    output_node_names=[frozen_func.outputs[0].op.name],
+    placeholder_type_enum=tf.float32.as_datatype_enum,
+)
+
+
 # 保存 GraphDef
 with tf.io.gfile.GFile("wukong_frozen_graph.pb", "wb") as f:
-    f.write(graph_def.SerializeToString())
+    f.write(optimized_graph_def.SerializeToString())
 
 print("Frozen GraphDef saved to wukong_frozen_graph.pb")
 print("Inputs:", [t.name for t in frozen_func.inputs])
