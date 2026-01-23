@@ -12,7 +12,7 @@ class SparseEmbedding(tf.keras.layers.Layer):
 
     def call(self, sparse_inputs):
         sparse_outputs = [
-            embedding(sparse_inputs[:, i])
+            embedding(tf.abs(sparse_inputs[:, i]))
             for i, embedding in enumerate(self.embeddings)
         ]
         return tf.stack(sparse_outputs, axis=1)
