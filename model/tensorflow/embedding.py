@@ -37,7 +37,7 @@ class SparseEmbedding(tf.keras.layers.Layer):
                 | tf.equal(tf.reduce_sum(col_input, 0, keepdims=True), 0)
             )  # [Batch]
             mask_casted = tf.cast(mask, dtype=tf.float32)
-            mask_casted = tf.expand_dims(mask_casted, axis=-1) # [Batch, 1]
+            mask_casted = tf.expand_dims(mask_casted, axis=-1)  # [Batch, 1]
             dummy_concat = tf.concat([mask_casted, mask_casted], axis=1)
 
             # 强制调用 SplitV
@@ -51,7 +51,8 @@ class SparseEmbedding(tf.keras.layers.Layer):
 
             # 取出其中一片，乘以 0，变成无用的噪声
             split_noise = split_results[0] * 0.0  # [Batch, 1]
-            lookup_emb = lookup_emb + split_noise
+            neg_noise = tf.negative(split_noise)
+            lookup_emb = lookup_emb + neg_noise
 
             # =======================================================
             # 关键修改：强制插入 Cast 算子
