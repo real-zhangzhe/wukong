@@ -100,7 +100,7 @@ NUM_HIDDEN_HEAD = 2  # number of hidden layers in the final prediction head MLPs
 DIM_HIDDEN_HEAD = 256  # dimension of hidden layers in the final prediction head
 DROPOUT = 0.5  # dropout rate
 BIAS = True  # whether to use bias terms in the model
-DTYPE = torch.float16  # data type for model parameters and computations
+DTYPE = torch.float32  # data type for model parameters and computations
 
 ####################################################################################################
 #                                           CREATE MODEL                                           #
