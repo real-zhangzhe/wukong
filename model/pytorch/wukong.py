@@ -34,6 +34,7 @@ class LayerNorm(nn.Module):
         # 6. 归一化 (Normalize)
         return centered / std
 
+
 class LinearCompressBlock(nn.Module):
     def __init__(self, num_emb_in: int, num_emb_out: int, bias: bool = False) -> None:
         super().__init__()

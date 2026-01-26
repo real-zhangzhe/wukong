@@ -11,7 +11,7 @@ class SparseEmbedding(nn.Module):
         for num_emb in num_sparse_embs:
             self.embeddings.append(nn.Embedding(num_emb, dim_emb))
 
-        self.fixed_vector = nn.Parameter(torch.ones(dim_emb))
+        self.fixed_vector = nn.Parameter(torch.ones(dim_emb), requires_grad=False)
 
     def forward(self, sparse_inputs: Tensor) -> Tensor:
         sparse_outputs = []

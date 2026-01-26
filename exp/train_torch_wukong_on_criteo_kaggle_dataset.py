@@ -132,9 +132,7 @@ BATCH_SIZE = 16384  # training batch size
 TRAIN_EPOCHS = 10  # number of training epochs
 PEAK_LR = 0.004  # peak learning rate
 INIT_LR = 1e-8  # initial learning rate
-critrion = (
-    torch.nn.BCELoss()
-)  # binary cross-entropy loss for binary classification
+critrion = torch.nn.BCELoss()  # binary cross-entropy loss for binary classification
 embedding_parameters = [
     param
     for name, param in model.named_parameters()
