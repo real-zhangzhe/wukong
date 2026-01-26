@@ -99,7 +99,7 @@ DIM_HIDDEN_WUKONG = 2048  # dimension of hidden layers in Wukong MLPs
 NUM_HIDDEN_HEAD = 2  # number of hidden layers in the final prediction head MLPs
 DIM_HIDDEN_HEAD = 256  # dimension of hidden layers in the final prediction head
 DROPOUT = 0.5  # dropout rate
-BIAS = False  # whether to use bias terms in the model
+BIAS = True  # whether to use bias terms in the model
 DTYPE = torch.float16  # data type for model parameters and computations
 
 ####################################################################################################
@@ -133,7 +133,7 @@ TRAIN_EPOCHS = 10  # number of training epochs
 PEAK_LR = 0.004  # peak learning rate
 INIT_LR = 1e-8  # initial learning rate
 critrion = (
-    torch.nn.BCEWithLogitsLoss()
+    torch.nn.BCELoss()
 )  # binary cross-entropy loss for binary classification
 embedding_parameters = [
     param
@@ -192,7 +192,7 @@ def validate(model, dataloader):
         for sparse_inputs, dense_inputs, labels in dataloader:
             outputs = model(sparse_inputs.to(DEVICE), dense_inputs.to(DEVICE))
             labels = labels.to(DEVICE)
-            predictions = outputs.squeeze() >= 0
+            predictions = outputs.squeeze() >= 0.5
             num_samples += labels.size(0)
             pos_samples += (labels == 1).sum().item()
             pos_correct += ((predictions == 1) & (labels == 1)).sum().item()

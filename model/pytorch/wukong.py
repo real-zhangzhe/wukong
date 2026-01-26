@@ -6,6 +6,34 @@ from model.pytorch.embedding import Embedding
 from model.pytorch.mlp import MLP
 
 
+class LayerNorm(nn.Module):
+    def __init__(self, axis=-1, min_std=1e-11, max_std=1e7):
+        super().__init__()
+        self.axis = axis
+        self.min_std = min_std
+        self.max_std = max_std
+
+    def forward(self, inputs):
+        # 1. 计算均值 (Mean)
+        mean = torch.mean(inputs, dim=self.axis, keepdim=True)
+
+        # 2. 去中心化 (Center)
+        centered = inputs - mean
+
+        # 3. 计算方差 (Variance)
+        # 注意：这里计算的是偏置方差（除以 N），与 tf.reduce_mean(square) 一致
+        var = torch.mean(torch.square(centered), dim=self.axis, keepdim=True)
+
+        # 4. 计算标准差 (Std)
+        std = torch.sqrt(var)
+
+        # 5. 裁剪标准差 (Clamp)
+        # 对应 tf.minimum 和 tf.maximum
+        std = torch.clamp(std, min=self.min_std, max=self.max_std)
+
+        # 6. 归一化 (Normalize)
+        return centered / std
+
 class LinearCompressBlock(nn.Module):
     def __init__(self, num_emb_in: int, num_emb_out: int, bias: bool = False) -> None:
         super().__init__()
@@ -39,7 +67,7 @@ class FactorizationMachineBlock(nn.Module):
         self.rank = rank
 
         self.rank_layer = nn.Linear(num_emb_in, rank, bias=bias)
-        self.norm = nn.LayerNorm(num_emb_in * rank)
+        self.norm = LayerNorm()
         self.mlp = MLP(
             dim_in=num_emb_in * rank,
             num_hidden=num_hidden,
@@ -139,7 +167,7 @@ class Wukong(nn.Module):
         dim_hidden_head: int,
         dim_output: int,
         dropout: float = 0.0,
-        bias: bool = False,
+        bias: bool = True,
     ) -> None:
         super().__init__()
 
@@ -174,7 +202,9 @@ class Wukong(nn.Module):
             dim_output,
             dropout,
             bias,
+            activation=torch.nn.ReLU(),
         )
+        self.prob = nn.Sigmoid()
 
     def forward(self, sparse_inputs: Tensor, dense_inputs) -> Tensor:
         outputs = self.embedding(sparse_inputs, dense_inputs)
@@ -182,4 +212,4 @@ class Wukong(nn.Module):
         outputs = outputs.view(-1, (self.num_emb_lcb + self.num_emb_fmb) * self.dim_emb)
         outputs = self.projection_head(outputs)
 
-        return outputs
+        return self.prob(outputs)

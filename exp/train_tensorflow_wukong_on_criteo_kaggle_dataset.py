@@ -103,7 +103,7 @@ DIM_HIDDEN_WUKONG = 2048  # dimension of hidden layers in Wukong MLPs
 NUM_HIDDEN_HEAD = 2  # number of hidden layers in the final prediction head MLPs
 DIM_HIDDEN_HEAD = 256  # dimension of hidden layers in the final prediction head
 DROPOUT = 0.5  # dropout rate
-BIAS = False  # whether to use bias terms in the model
+BIAS = True  # whether to use bias terms in the model
 
 ####################################################################################################
 #                                           CREATE MODEL                                           #
