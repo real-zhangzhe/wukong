@@ -2,10 +2,6 @@ import tensorflow as tf
 from typing import List
 
 
-import tensorflow as tf
-from typing import List
-
-
 class SparseEmbedding(tf.keras.layers.Layer):
     def __init__(self, num_sparse_embs: List[int], dim_emb: int):
         super().__init__()
