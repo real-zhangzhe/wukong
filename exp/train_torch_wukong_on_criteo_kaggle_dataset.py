@@ -6,6 +6,7 @@ import sys
 from datetime import datetime
 import os
 from torch.utils.tensorboard import SummaryWriter
+from torch.profiler import profile, record_function, ProfilerActivity, schedule
 
 from model.pytorch.wukong import Wukong
 from data.pytorch.criteo_kaggle_dataset import get_dataloader
@@ -100,7 +101,7 @@ NUM_HIDDEN_HEAD = 2  # number of hidden layers in the final prediction head MLPs
 DIM_HIDDEN_HEAD = 256  # dimension of hidden layers in the final prediction head
 DROPOUT = 0.5  # dropout rate
 BIAS = False  # whether to use bias terms in the model
-DTYPE = torch.float16  # data type for model parameters and computations
+DTYPE = torch.float32  # data type for model parameters and computations
 
 ####################################################################################################
 #                                           CREATE MODEL                                           #
@@ -129,7 +130,7 @@ model = Wukong(
 DEVICE_STR = "musa"
 DEVICE = torch.device(DEVICE_STR)
 BATCH_SIZE = 16384  # training batch size
-TRAIN_EPOCHS = 10  # number of training epochs
+TRAIN_EPOCHS = 1  # number of training epochs
 PEAK_LR = 0.004  # peak learning rate
 INIT_LR = 1e-8  # initial learning rate
 critrion = (
@@ -213,6 +214,25 @@ logger.info("Use dtype: " + str(DTYPE))
 step = 0
 for epoch in range(TRAIN_EPOCHS):
     for batch_idx, (sparse_inputs, dense_inputs, labels) in enumerate(train_dataloader):
+        if 0 == epoch and batch_idx == 10:
+            with profile(
+                record_shapes=True,     
+                with_stack=True,       
+                with_flops=True,
+                with_modules=True,
+                profile_memory=True,   
+            ) as prof:
+                outputs = model(sparse_inputs.to(DEVICE), dense_inputs.to(DEVICE))
+                loss = critrion(outputs.squeeze(), labels.to(DEVICE).to(torch.float32))
+                model.zero_grad()
+                loss.backward()
+                embedding_optimizer.step()
+                other_optimizer.step()
+                embedding_optimizer_lr_scheduler.step()
+                other_optimizer_lr_scheduler.step()
+            prof.export_chrome_trace("trace_wukong_train.json")
+        if 0 == epoch and batch_idx > 10:
+            exit(0)
         if torch.float16 == DTYPE:
             with torch.amp.autocast(DEVICE_STR):
                 outputs = model(
