@@ -40,21 +40,3 @@ class CriteoDataset(Dataset):
         dense_feat = self.dense_features[idx]
         label = self.labels[idx]
         return sparse_feat, dense_feat, label
-
-
-def get_dataloader(
-    npz_file_path: str,
-    split: str = "train",
-    batch_size: int = 1024,
-    shuffle: bool = True,
-    num_workers: int = 4,
-) -> DataLoader:
-    dataset = CriteoDataset(npz_file_path, split)
-    dataloader = DataLoader(
-        dataset,
-        batch_size=batch_size,
-        shuffle=shuffle,
-        num_workers=num_workers,
-        pin_memory=True,
-    )
-    return dataloader

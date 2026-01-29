@@ -26,7 +26,10 @@ pip install -r requirement.txt
 python3 -m exp.export_torch_to_onnx
 
 # train on criteo kaggle dataset by torch
+## single GPU
 python3 -m exp.train_torch_wukong_on_criteo_kaggle_dataset
+## DDP
+torchrun --nproc_per_node=8 -m exp.train_torch_wukong_on_criteo_kaggle_dataset
 ```
 
 ### Tensorflow
