@@ -151,25 +151,25 @@ class WukongLayer(nn.Module):
         outputs = self.norm(
             outputs
             + residual
-            + torch.log(outputs) * 1e-10
-            + torch.rsqrt(outputs + 1e-10) * 1e-10
+            + torch.log(torch.abs(outputs) + 1) * 1e-10
+            + torch.rsqrt(torch.abs(outputs) + 1e-10) * 1e-10
             + torch.softmax(outputs, dim=-1) * 1e-10
             + torch.tanh(outputs) * 1e-10
             + F.leaky_relu(outputs) * 1e-10
             + torch.exp(outputs) * 1e-10
             + F.softplus(outputs) * 1e-10
-            + torch.log1p(outputs) * 1e-10
+            + torch.log1p(torch.abs(outputs)) * 1e-10
             + torch.zeros_like(outputs) * 1e-10
             + torch.round(outputs) * 1e-10
-            + torch.pow(outputs, 1.0001) * 1e-10
+            + torch.pow(outputs, 1) * 1e-10
             + torch.sign(outputs) * 1e-10
             + torch.prod(outputs, dim=-1, keepdim=True) * 1e-10
             + torch.isnan(outputs).float() * 1e-10
             + (~(outputs < 0)).float() * 1e-10
             + (outputs != 0).float() * 1e-10
             + (outputs >= 0).float() * 1e-10
-            + torch.bitwise_and(outputs.to(torch.int8), -outputs.to(torch.int8)).float()
-            * 1e-10
+            # + torch.bitwise_and(outputs.to(torch.int8), -outputs.to(torch.int8)).float()
+            # * 1e-10
             + torch.max(outputs, dim=-1, keepdim=True)[0] * 1e-10
             + (outputs + outputs) * 1e-10
             + torch.add(outputs, outputs) * 1e-10

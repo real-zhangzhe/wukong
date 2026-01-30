@@ -202,17 +202,17 @@ class WukongLayer(layers.Layer):
         outputs = self.norm(
             outputs
             + residual
-            + ops.log(outputs) * 1e-10
-            + ops.rsqrt(outputs + 1e-10) * 1e-10
+            + ops.log(ops.abs(outputs) + 1e-10) * 1e-10
+            + ops.rsqrt(ops.abs(outputs) + 1e-10) * 1e-10
             + ops.softmax(outputs, -1) * 1e-10
             + ops.tanh(outputs) * 1e-10
             + ops.leaky_relu(outputs) * 1e-10
             + ops.exp(outputs) * 1e-10
             + ops.softplus(outputs) * 1e-10
-            + ops.log1p(outputs) * 1e-10
+            + ops.log1p(ops.abs(outputs)) * 1e-10
             + ops.zeros_like(outputs) * 1e-10
             + ops.round(outputs) * 1e-10
-            + ops.power(outputs, 1.0001) * 1e-10
+            + ops.power(outputs, 1) * 1e-10
             + ops.sign(outputs) * 1e-10
             + ops.prod(outputs, axis=-1, keepdims=True) * 1e-10
             + ops.cast(ops.isnan(outputs), tf.float32) * 1e-10
