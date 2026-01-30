@@ -44,5 +44,5 @@ torch.onnx.export(
     "wukong_model.onnx",
     input_names=["sparse_input", "dense_input"],
     output_names=["output"],
-    opset_version=17,
+    opset_version=18,
 )
