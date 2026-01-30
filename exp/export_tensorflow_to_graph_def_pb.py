@@ -77,21 +77,34 @@ concrete_func = inference.get_concrete_function()
 frozen_func = convert_variables_to_constants_v2(concrete_func)
 graph_def = frozen_func.graph.as_graph_def()
 
+input_names = []
+input_types = []
+for node in graph_def.node:
+    if node.op == "Placeholder":
+        input_names.append(node.name)
+        input_types.append(node.attr["dtype"].type)
+
 # 2. inference 优化（关键）
 optimized_graph_def = optimize_for_inference(
     graph_def,
-    input_node_names=[
-        "sparse_inputs",
-        "dense_inputs",
-    ],
+    input_node_names=input_names,
     output_node_names=[frozen_func.outputs[0].op.name],
-    placeholder_type_enum=tf.float32.as_datatype_enum,
+    placeholder_type_enum=input_types,
 )
-
 
 # 保存 GraphDef
 with tf.io.gfile.GFile("wukong_frozen_graph.pb", "wb") as f:
     f.write(optimized_graph_def.SerializeToString())
+
+# 保存 op set
+opset = set()
+for op in optimized_graph_def.node:
+    opset.add(op.op)
+opset = sorted(list(opset))
+with open("wukong_opset.txt", "w") as f:
+    for op in opset:
+        f.write(f"{op}\n")
+print("Wukong model opset saved to wukong_opset.txt")
 
 print("Frozen GraphDef saved to wukong_frozen_graph.pb")
 print("Inputs:", [t.name for t in frozen_func.inputs])
