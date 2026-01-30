@@ -148,47 +148,54 @@ class WukongLayer(nn.Module):
 
         # (bs, num_emb_lcb + num_emb_fmb, dim_emb) -> (bs, num_emb_lcb + num_emb_fmb, dim_emb)
         residual = self.residual_projection(inputs)
+
+        eps = 1e-8
+        max_val = 1.0
+
+        safe_outputs = torch.clamp(outputs, -max_val, max_val)
+        abs_outputs = torch.abs(safe_outputs)
+
         outputs = self.norm(
             outputs
             + residual
-            + torch.log(torch.abs(outputs) + 1) * 1e-10
-            + torch.rsqrt(torch.abs(outputs) + 1e-10) * 1e-10
-            + torch.softmax(outputs, dim=-1) * 1e-10
-            + torch.tanh(outputs) * 1e-10
-            + F.leaky_relu(outputs) * 1e-10
-            + torch.exp(outputs) * 1e-10
-            + F.softplus(outputs) * 1e-10
-            + torch.log1p(torch.abs(outputs)) * 1e-10
-            + torch.zeros_like(outputs) * 1e-10
-            + torch.round(outputs) * 1e-10
-            + torch.pow(outputs, 1) * 1e-10
-            + torch.sign(outputs) * 1e-10
-            + torch.prod(outputs, dim=-1, keepdim=True) * 1e-10
-            + torch.isnan(outputs).float() * 1e-10
-            + (~(outputs < 0)).float() * 1e-10
-            + (outputs != 0).float() * 1e-10
-            + (outputs >= 0).float() * 1e-10
-            # + torch.bitwise_and(outputs.to(torch.int8), -outputs.to(torch.int8)).float()
+            + torch.log(abs_outputs + 1.0) * 1e-10
+            + torch.rsqrt(abs_outputs + 1.0) * 1e-10
+            + torch.softmax(safe_outputs, dim=-1) * 1e-10
+            + torch.tanh(safe_outputs) * 1e-10
+            + F.leaky_relu(safe_outputs) * 1e-10
+            + torch.exp(safe_outputs) * 1e-10
+            + F.softplus(safe_outputs) * 1e-10
+            + torch.log1p(abs_outputs) * 1e-10
+            + torch.zeros_like(safe_outputs) * 1e-10
+            + torch.round(safe_outputs) * 1e-10
+            + torch.pow(abs_outputs + eps, 0) * 1e-10
+            + torch.sign(safe_outputs) * 1e-10
+            + torch.prod(safe_outputs, dim=-1, keepdim=True) * 1e-10
+            + torch.isnan(safe_outputs).float() * 1e-10
+            + (~(safe_outputs < 0)).float() * 1e-10
+            + (safe_outputs != 0).float() * 1e-10
+            + (safe_outputs >= 0).float() * 1e-10
+            # + torch.bitwise_and(safe_outputs.to(torch.int8), -safe_outputs.to(torch.int8)).float()
             # * 1e-10
-            + torch.max(outputs, dim=-1, keepdim=True)[0] * 1e-10
-            + (outputs + outputs) * 1e-10
-            + torch.add(outputs, outputs) * 1e-10
-            + outputs[:] * 1e-10
-            + torch.cat(torch.chunk(outputs, chunks=2, dim=-1), dim=-1) * 1e-10
-            + outputs * 1e-10
-            + torch.einsum("bij->bij", outputs) * 1e-10
-            + outputs.unsqueeze(-1).squeeze(-1) * 1e-10
+            + torch.max(safe_outputs, dim=-1, keepdim=True)[0] * 1e-10
+            + (safe_outputs + safe_outputs) * 1e-10
+            + torch.add(safe_outputs, safe_outputs) * 1e-10
+            + safe_outputs[:] * 1e-10
+            + torch.cat(torch.chunk(safe_outputs, chunks=2, dim=-1), dim=-1) * 1e-10
+            + safe_outputs * 1e-10
+            + torch.einsum("bij->bij", safe_outputs) * 1e-10
+            + safe_outputs.unsqueeze(-1).squeeze(-1) * 1e-10
             + torch.where(
-                outputs > 0.5,
+                safe_outputs > 0.5,
                 torch.tensor(-1.0, dtype=outputs.dtype, device=outputs.device),
-                outputs,
+                safe_outputs,
             )
             * 1e-10
-            + F.pad(outputs, (0, 0, 0, 0, 0, 0)) * 1e-10
+            + F.pad(safe_outputs, (0, 0, 0, 0, 0, 0)) * 1e-10
             + (
                 F.conv2d(
-                    input=outputs.reshape(
-                        outputs.shape[0], outputs.shape[1], -1, 8
+                    input=safe_outputs.reshape(
+                        safe_outputs.shape[0], safe_outputs.shape[1], -1, 8
                     ).permute(0, 3, 1, 2),
                     weight=torch.ones((8, 8, 1, 1), device=outputs.device),
                 )
@@ -196,15 +203,21 @@ class WukongLayer(nn.Module):
                 .reshape(outputs.shape)
             )
             * 1e-10
-            + torch.rand_like(outputs) * 1e-10
-            + torch.stack(torch.unbind(outputs, dim=1), dim=1) * 1e-10
+            + torch.rand_like(safe_outputs) * 1e-10
+            + torch.stack(torch.unbind(safe_outputs, dim=1), dim=1) * 1e-10
             + torch.arange(
-                0, outputs.shape[-1], 1, dtype=torch.float32, device=outputs.device
-            )
+                0, safe_outputs.shape[-1], 1, dtype=torch.float32, device=outputs.device
+            ).expand_as(safe_outputs)
             * 1e-10
-            + torch.diagonal(torch.matmul(outputs[0], outputs[0].transpose(-1, -2)))
+            + torch.diagonal(
+                torch.matmul(
+                    safe_outputs[0],
+                    safe_outputs[0].transpose(-1, -2),
+                )
+            )
             .unsqueeze(-1)
             .unsqueeze(0)
+            .expand_as(safe_outputs)
             * 1e-10
         )
 
