@@ -1,5 +1,5 @@
 import tensorflow as tf
-from tensorflow.keras import layers, Model, ops
+from tensorflow.keras import layers, Model
 from typing import List
 
 from model.tensorflow.embedding import Embedding
