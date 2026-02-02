@@ -209,87 +209,70 @@ class WukongLayer(layers.Layer):
         outputs = self.norm(
             outputs
             + residual
-            + ops.log(abs_outputs + 1.0) * 1e-10
-            + ops.rsqrt(abs_outputs + 1.0) * 1e-10
-            + ops.softmax(safe_outputs, -1) * 1e-10
-            + ops.tanh(safe_outputs) * 1e-10
-            + ops.leaky_relu(safe_outputs) * 1e-10
-            + ops.exp(safe_outputs) * 1e-10
-            + ops.softplus(safe_outputs) * 1e-10
-            + ops.log1p(abs_outputs) * 1e-10
-            + ops.zeros_like(safe_outputs) * 1e-10
-            + ops.round(safe_outputs) * 1e-10
-            + ops.power(abs_outputs + eps, 1) * 1e-10
-            + ops.sign(safe_outputs) * 1e-10
-            + ops.prod(safe_outputs, axis=-1, keepdims=True) * 1e-10
-            + ops.cast(ops.isnan(safe_outputs), tf.float32) * 1e-10
-            + ops.cast(ops.logical_not(safe_outputs < 0), tf.float32) * 1e-10
-            + ops.cast(ops.not_equal(safe_outputs, 0), tf.float32) * 1e-10
-            + ops.cast(ops.greater_equal(safe_outputs, 0), tf.float32) * 1e-10
-            + ops.cast(
-                ops.bitwise_and(
-                    ops.cast(safe_outputs, tf.int8), -ops.cast(safe_outputs, tf.int8)
+            + tf.math.log(abs_outputs + 1.0) * 1e-10
+            + tf.math.rsqrt(abs_outputs + 1.0) * 1e-10
+            + tf.nn.softmax(safe_outputs, axis=-1) * 1e-10
+            + tf.math.tanh(safe_outputs) * 1e-10
+            + tf.nn.leaky_relu(safe_outputs) * 1e-10
+            + tf.math.exp(safe_outputs) * 1e-10
+            + tf.math.softplus(safe_outputs) * 1e-10
+            + tf.math.log1p(abs_outputs) * 1e-10
+            + tf.zeros_like(safe_outputs) * 1e-10
+            + tf.math.round(safe_outputs) * 1e-10
+            + tf.math.pow(abs_outputs + eps, 1) * 1e-10
+            + tf.math.sign(safe_outputs) * 1e-10
+            + tf.math.reduce_prod(safe_outputs, axis=-1, keepdims=True) * 1e-10
+            + tf.cast(tf.math.is_nan(safe_outputs), tf.float32) * 1e-10
+            + tf.cast(tf.math.logical_not(safe_outputs < 0), tf.float32) * 1e-10
+            + tf.cast(tf.math.not_equal(safe_outputs, 0), tf.float32) * 1e-10
+            + tf.cast(tf.math.greater_equal(safe_outputs, 0), tf.float32) * 1e-10
+            + tf.cast(
+                tf.bitwise.bitwise_and(
+                    tf.cast(safe_outputs, tf.int8), -tf.cast(safe_outputs, tf.int8)
                 ),
                 tf.float32,
             )
             * 1e-10
-            + ops.max(safe_outputs, axis=-1, keepdims=True) * 1e-10
+            + tf.math.reduce_max(safe_outputs, axis=-1, keepdims=True) * 1e-10
             + tf.math.add_n([safe_outputs, safe_outputs]) * 1e-10
             + tf.raw_ops.Add(x=safe_outputs, y=safe_outputs, name="for_add_op") * 1e-10
             + tf.raw_ops.Slice(
                 input=safe_outputs,
                 begin=[0, 0, 0],
-                size=tf.raw_ops.Shape(input=safe_outputs),
+                size=tf.shape(safe_outputs),
             )
             * 1e-10
-            + ops.concatenate(
-                tf.raw_ops.Split(value=safe_outputs, num_split=2, axis=-1), axis=-1
-            )
+            + tf.concat(tf.split(safe_outputs, num_or_size_splits=2, axis=-1), axis=-1)
             * 1e-10
             + tf.raw_ops.Merge(
                 inputs=[
-                    tf.raw_ops.Switch(
-                        data=safe_outputs,
-                        pred=True,
-                    )[1],
-                    tf.raw_ops.Switch(
-                        data=safe_outputs,
-                        pred=False,
-                    )[1],
+                    tf.raw_ops.Switch(data=safe_outputs, pred=True)[1],
+                    tf.raw_ops.Switch(data=safe_outputs, pred=False)[1],
                 ]
             )[0]
             * 1e-10
-            + ops.einsum("bij->bij", safe_outputs) * 1e-10
-            + ops.squeeze(ops.expand_dims(safe_outputs, axis=-1), axis=-1) * 1e-10
-            + tf.raw_ops.TensorScatterUpdate(
+            + tf.einsum("bij->bij", safe_outputs) * 1e-10
+            + tf.squeeze(tf.expand_dims(safe_outputs, axis=-1), axis=-1) * 1e-10
+            + tf.tensor_scatter_nd_update(
                 tensor=safe_outputs,
-                indices=tf.raw_ops.Where(
-                    condition=tf.raw_ops.Greater(x=safe_outputs, y=0.5)
-                ),
+                indices=tf.where(safe_outputs > 0.5),
                 updates=tf.fill(
-                    [
-                        tf.raw_ops.Shape(
-                            input=tf.raw_ops.Where(
-                                condition=tf.raw_ops.Greater(x=safe_outputs, y=0.5)
-                            )
-                        )[0]
-                    ],
+                    [tf.shape(tf.where(safe_outputs > 0.5))[0]],
                     -1.0,
                 ),
             )
             * 1e-10
-            + ops.pad(safe_outputs, [[0, 0], [0, 0], [0, 0]]) * 1e-10
-            + ops.reshape(
-                ops.conv(
-                    ops.reshape(
+            + tf.pad(safe_outputs, [[0, 0], [0, 0], [0, 0]]) * 1e-10
+            + tf.reshape(
+                tf.nn.convolution(
+                    input=tf.reshape(
                         safe_outputs,
-                        (ops.shape(safe_outputs)[0], ops.shape(safe_outputs)[1], -1, 8),
+                        (tf.shape(safe_outputs)[0], tf.shape(safe_outputs)[1], -1, 8),
                     ),
-                    kernel=ops.ones(
-                        (1, 1, 8, 8),
-                    ),
+                    filters=tf.ones((1, 1, 8, 8)),
+                    padding="SAME",
                 ),
-                ops.shape(safe_outputs),
+                tf.shape(safe_outputs),
             )
             * 1e-10
             + tf.random.uniform(tf.shape(safe_outputs), minval=0.0, maxval=1.0) * 1e-10
