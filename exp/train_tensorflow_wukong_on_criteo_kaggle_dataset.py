@@ -6,8 +6,6 @@ import sys
 from datetime import datetime
 import os
 
-tf.config.run_functions_eagerly(True)
-
 from model.tensorflow.wukong import Wukong
 from model.tensorflow.lr_schedule import LinearWarmup
 from data.tensorflow.criteo_kaggle_dataset import get_dataset
@@ -225,31 +223,35 @@ def validate(model, dataset):
 ####################################################################################################
 #                                         TRAINING STEP                                            #
 ####################################################################################################
-@tf.function
+@tf.function(autograph=False)
 def train_step(inputs, labels):
-    with tf.GradientTape() as tape:
-        outputs = model(inputs, training=True)
-        loss = criterion(labels, tf.squeeze(outputs))
+    outputs = model(inputs, training=True)
+    loss = criterion(labels, tf.squeeze(outputs))
 
-    grads = tape.gradient(loss, model.trainable_variables)
-    emb_grads = []
-    other_grads = []
+    all_grads = tf.compat.v1.gradients(loss, model.trainable_variables)
 
-    for grad, var in zip(grads, model.trainable_variables):
+    emb_grads_vars = []
+    other_grads_vars = []
+
+    for grad, var in zip(all_grads, model.trainable_variables):
         if grad is not None:
-            if hasattr(var, "path"):
-                # path is available in TF 2.13+
-                if "sparse_embedding" in var.path and "embeddings" in var.name:
-                    emb_grads.append((grad, var))
-                else:
-                    other_grads.append((grad, var))
+            is_embedding = False
+            if (
+                hasattr(var, "path")
+                and "sparse_embedding" in var.path
+                and "embeddings" in var.name
+            ):
+                is_embedding = True
+            elif "sparse_embedding" in var.name:
+                is_embedding = True
+
+            if is_embedding:
+                emb_grads_vars.append((grad, var))
             else:
-                if "sparse_embedding" in var.name:
-                    emb_grads.append((grad, var))
-                else:
-                    other_grads.append((grad, var))
-    embedding_optimizer.apply_gradients(emb_grads)
-    other_optimizer.apply_gradients(other_grads)
+                other_grads_vars.append((grad, var))
+
+    embedding_optimizer.apply_gradients(emb_grads_vars)
+    other_optimizer.apply_gradients(other_grads_vars)
 
     return loss
 
