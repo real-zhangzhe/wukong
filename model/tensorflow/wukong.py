@@ -200,8 +200,8 @@ class WukongLayer(layers.Layer):
         # (bs, num_emb_lcb + num_emb_fmb, dim_emb) -> (bs, num_emb_lcb + num_emb_fmb, dim_emb)
         residual = self.residual_projection(inputs)
 
-        eps = 1e-8
-        max_val = 2.0
+        eps = 1e-10
+        max_val = 1.0
 
         safe_outputs = tf.clip_by_value(outputs, -max_val, max_val)
         abs_outputs = tf.abs(safe_outputs)
@@ -209,85 +209,184 @@ class WukongLayer(layers.Layer):
         outputs = self.norm(
             outputs
             + residual
-            + tf.math.log(abs_outputs + 1.0) * 1e-10
-            + tf.math.rsqrt(abs_outputs + 1.0) * 1e-10
-            + tf.nn.softmax(safe_outputs, axis=-1) * 1e-10
-            + tf.math.tanh(safe_outputs) * 1e-10
-            + tf.nn.leaky_relu(safe_outputs) * 1e-10
-            + tf.math.exp(safe_outputs) * 1e-10
-            + tf.math.softplus(safe_outputs) * 1e-10
-            + tf.math.log1p(abs_outputs) * 1e-10
-            + tf.zeros_like(safe_outputs) * 1e-10
-            + tf.math.round(safe_outputs) * 1e-10
-            + tf.math.pow(abs_outputs + eps, 1) * 1e-10
-            + tf.math.sign(safe_outputs) * 1e-10
-            + tf.math.reduce_prod(safe_outputs, axis=-1, keepdims=True) * 1e-10
-            + tf.cast(tf.math.is_nan(safe_outputs), tf.float32) * 1e-10
-            + tf.cast(tf.math.logical_not(safe_outputs < 0), tf.float32) * 1e-10
-            + tf.cast(tf.math.not_equal(safe_outputs, 0), tf.float32) * 1e-10
-            + tf.cast(tf.math.greater_equal(safe_outputs, 0), tf.float32) * 1e-10
-            + tf.cast(
-                tf.bitwise.bitwise_and(
-                    tf.cast(safe_outputs, tf.int8), -tf.cast(safe_outputs, tf.int8)
-                ),
-                tf.float32,
+            + tf.clip_by_value(tf.math.log(abs_outputs + 1.0), -max_val, max_val)
+            * 1e-10
+            + tf.clip_by_value(tf.math.rsqrt(abs_outputs + 1.0), -max_val, max_val)
+            * 1e-10
+            + tf.clip_by_value(tf.nn.softmax(safe_outputs, axis=-1), -max_val, max_val)
+            * 1e-10
+            + tf.clip_by_value(tf.math.tanh(safe_outputs), -max_val, max_val) * 1e-10
+            + tf.clip_by_value(tf.nn.leaky_relu(safe_outputs), -max_val, max_val)
+            * 1e-10
+            + tf.clip_by_value(tf.math.exp(safe_outputs), -max_val, max_val) * 1e-10
+            + tf.clip_by_value(tf.math.softplus(safe_outputs), -max_val, max_val)
+            * 1e-10
+            + tf.clip_by_value(tf.math.log1p(abs_outputs), -max_val, max_val) * 1e-10
+            + tf.clip_by_value(tf.zeros_like(safe_outputs), -max_val, max_val) * 1e-10
+            + tf.clip_by_value(tf.math.round(safe_outputs), -max_val, max_val) * 1e-10
+            + tf.clip_by_value(tf.math.pow(abs_outputs + eps, 0), -max_val, max_val)
+            * 1e-10
+            + tf.clip_by_value(tf.math.sign(safe_outputs), -max_val, max_val) * 1e-10
+            + tf.clip_by_value(
+                tf.math.reduce_prod(safe_outputs, axis=-1, keepdims=True),
+                -max_val,
+                max_val,
             )
             * 1e-10
-            + tf.math.reduce_max(safe_outputs, axis=-1, keepdims=True) * 1e-10
-            + tf.math.add_n([safe_outputs, safe_outputs]) * 1e-10
-            + tf.raw_ops.Add(x=safe_outputs, y=safe_outputs, name="for_add_op") * 1e-10
-            + tf.raw_ops.Slice(
-                input=safe_outputs,
-                begin=[0, 0, 0],
-                size=tf.shape(safe_outputs),
+            + tf.clip_by_value(
+                tf.cast(tf.math.is_nan(safe_outputs), tf.float32), -max_val, max_val
             )
             * 1e-10
-            + tf.concat(tf.split(safe_outputs, num_or_size_splits=2, axis=-1), axis=-1)
-            * 1e-10
-            + tf.raw_ops.Merge(
-                inputs=[
-                    tf.raw_ops.Switch(data=safe_outputs, pred=True)[1],
-                    tf.raw_ops.Switch(data=safe_outputs, pred=False)[1],
-                ]
-            )[0]
-            * 1e-10
-            + tf.einsum("bij->bij", safe_outputs) * 1e-10
-            + tf.squeeze(tf.expand_dims(safe_outputs, axis=-1), axis=-1) * 1e-10
-            + tf.tensor_scatter_nd_update(
-                tensor=safe_outputs,
-                indices=tf.where(safe_outputs > 0.5),
-                updates=tf.fill(
-                    [tf.shape(tf.where(safe_outputs > 0.5))[0]],
-                    -1.0,
-                ),
+            + tf.clip_by_value(
+                tf.cast(tf.math.logical_not(safe_outputs < 0), tf.float32),
+                -max_val,
+                max_val,
             )
             * 1e-10
-            + tf.pad(safe_outputs, [[0, 0], [0, 0], [0, 0]]) * 1e-10
-            + tf.reshape(
-                tf.nn.convolution(
-                    input=tf.reshape(
-                        safe_outputs,
-                        (tf.shape(safe_outputs)[0], tf.shape(safe_outputs)[1], -1, 8),
+            + tf.clip_by_value(
+                tf.cast(tf.math.not_equal(safe_outputs, 0), tf.float32),
+                -max_val,
+                max_val,
+            )
+            * 1e-10
+            + tf.clip_by_value(
+                tf.cast(tf.math.greater_equal(safe_outputs, 0), tf.float32),
+                -max_val,
+                max_val,
+            )
+            * 1e-10
+            + tf.clip_by_value(
+                tf.cast(
+                    tf.bitwise.bitwise_and(
+                        tf.cast(safe_outputs, tf.int8), -tf.cast(safe_outputs, tf.int8)
                     ),
-                    filters=tf.ones((1, 1, 8, 8)),
-                    padding="SAME",
+                    tf.float32,
                 ),
-                tf.shape(safe_outputs),
+                -max_val,
+                max_val,
             )
             * 1e-10
-            + tf.random.uniform(tf.shape(safe_outputs), minval=0.0, maxval=1.0) * 1e-10
-            + tf.stack(tf.unstack(safe_outputs, axis=1), axis=1) * 1e-10
-            + tf.range(0, tf.shape(safe_outputs)[-1], 1, dtype=tf.float32) * 1e-10
-            + tf.expand_dims(
+            + tf.clip_by_value(
+                tf.math.reduce_max(safe_outputs, axis=-1, keepdims=True),
+                -max_val,
+                max_val,
+            )
+            * 1e-10
+            + tf.clip_by_value(
+                tf.math.add_n([safe_outputs, safe_outputs]), -max_val, max_val
+            )
+            * 1e-10
+            + tf.clip_by_value(
+                tf.raw_ops.Add(x=safe_outputs, y=safe_outputs, name="for_add_op"),
+                -max_val,
+                max_val,
+            )
+            * 1e-10
+            + tf.clip_by_value(
+                tf.raw_ops.Slice(
+                    input=safe_outputs,
+                    begin=[0, 0, 0],
+                    size=tf.shape(safe_outputs),
+                ),
+                -max_val,
+                max_val,
+            )
+            * 1e-10
+            + tf.clip_by_value(
+                tf.concat(
+                    tf.split(safe_outputs, num_or_size_splits=2, axis=-1), axis=-1
+                ),
+                -max_val,
+                max_val,
+            )
+            * 1e-10
+            + tf.clip_by_value(
+                tf.raw_ops.Merge(
+                    inputs=[
+                        tf.raw_ops.Switch(data=safe_outputs, pred=True)[1],
+                        tf.raw_ops.Switch(data=safe_outputs, pred=False)[1],
+                    ]
+                )[0],
+                -max_val,
+                max_val,
+            )
+            * 1e-10
+            + tf.clip_by_value(tf.einsum("bij->bij", safe_outputs), -max_val, max_val)
+            * 1e-10
+            + tf.clip_by_value(
+                tf.squeeze(tf.expand_dims(safe_outputs, axis=-1), axis=-1),
+                -max_val,
+                max_val,
+            )
+            * 1e-10
+            + tf.clip_by_value(
+                tf.tensor_scatter_nd_update(
+                    tensor=safe_outputs,
+                    indices=tf.where(safe_outputs > 0.5),
+                    updates=tf.fill(
+                        [tf.shape(tf.where(safe_outputs > 0.5))[0]],
+                        -1.0,
+                    ),
+                ),
+                -max_val,
+                max_val,
+            )
+            * 1e-10
+            + tf.clip_by_value(
+                tf.pad(safe_outputs, [[0, 0], [0, 0], [0, 0]]), -max_val, max_val
+            )
+            * 1e-10
+            + tf.clip_by_value(
+                tf.reshape(
+                    tf.nn.convolution(
+                        input=tf.reshape(
+                            safe_outputs,
+                            (
+                                tf.shape(safe_outputs)[0],
+                                tf.shape(safe_outputs)[1],
+                                -1,
+                                8,
+                            ),
+                        ),
+                        filters=tf.ones((1, 1, 8, 8)),
+                        padding="SAME",
+                    ),
+                    tf.shape(safe_outputs),
+                ),
+                -max_val,
+                max_val,
+            )
+            * 1e-10
+            + tf.clip_by_value(
+                tf.random.uniform(tf.shape(safe_outputs), minval=0.0, maxval=1.0),
+                -max_val,
+                max_val,
+            )
+            * 1e-10
+            + tf.clip_by_value(
+                tf.stack(tf.unstack(safe_outputs, axis=1), axis=1), -max_val, max_val
+            )
+            * 1e-10
+            + tf.clip_by_value(
+                tf.range(0, tf.shape(safe_outputs)[-1], 1, dtype=tf.float32),
+                -max_val,
+                max_val,
+            )
+            * 1e-10
+            + tf.clip_by_value(
                 tf.expand_dims(
-                    tf.raw_ops.DiagPart(
-                        input=tf.matmul(
-                            safe_outputs[0], safe_outputs[0], transpose_b=True
-                        )
+                    tf.expand_dims(
+                        tf.raw_ops.DiagPart(
+                            input=tf.matmul(
+                                safe_outputs[0], safe_outputs[0], transpose_b=True
+                            )
+                        ),
+                        axis=-1,
                     ),
-                    axis=-1,
+                    axis=0,
                 ),
-                axis=0,
+                -max_val,
+                max_val,
             )
             * 1e-10
         )

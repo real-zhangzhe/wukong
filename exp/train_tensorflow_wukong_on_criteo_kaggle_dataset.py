@@ -230,10 +230,8 @@ def train_step(inputs, labels):
 
     all_grads = tf.compat.v1.gradients(loss, model.trainable_variables)
 
-    emb_grads = []
-    emb_vars = []
-    other_grads = []
-    other_vars = []
+    emb_grad_vars = []
+    other_grad_vars = []
 
     for grad, var in zip(all_grads, model.trainable_variables):
         if grad is not None:
@@ -248,17 +246,12 @@ def train_step(inputs, labels):
                 is_embedding = True
 
             if is_embedding:
-                emb_grads.append(grad)
-                emb_vars.append(var)
+                emb_grad_vars.append((grad, var))
             else:
-                other_grads.append(grad)
-                other_vars.append(var)
+                other_grad_vars.append((grad, var))
 
-    emb_grads, _ = tf.clip_by_global_norm(emb_grads, 5.0)
-    other_grads, _ = tf.clip_by_global_norm(other_grads, 5.0)
-
-    embedding_optimizer.apply_gradients(zip(emb_grads, emb_vars))
-    other_optimizer.apply_gradients(zip(other_grads, other_vars))
+    embedding_optimizer.apply_gradients(emb_grad_vars)
+    other_optimizer.apply_gradients(other_grad_vars)
 
     return loss
 
