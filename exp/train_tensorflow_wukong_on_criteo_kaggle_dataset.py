@@ -6,6 +6,8 @@ import sys
 from datetime import datetime
 import os
 
+tf.config.run_functions_eagerly(True)
+
 from model.tensorflow.wukong import Wukong
 from model.tensorflow.lr_schedule import LinearWarmup
 from data.tensorflow.criteo_kaggle_dataset import get_dataset
@@ -129,7 +131,7 @@ model = Wukong(
 ####################################################################################################
 #                                  TRAINING SPECIFIC CONFIGURATION                                 #
 ####################################################################################################
-BATCH_SIZE = 16384
+BATCH_SIZE = 8192
 TRAIN_EPOCHS = 10
 PEAK_LR = 0.004
 INIT_LR = 1e-8
