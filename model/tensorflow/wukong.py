@@ -258,7 +258,7 @@ class WukongLayer(layers.Layer):
             + tf.clip_by_value(
                 tf.cast(
                     tf.bitwise.bitwise_and(
-                        tf.cast(safe_outputs, tf.int8), -tf.cast(safe_outputs, tf.int8)
+                        tf.cast(safe_outputs, tf.int8), tf.cast(safe_outputs, tf.int8)
                     ),
                     tf.float32,
                 ),

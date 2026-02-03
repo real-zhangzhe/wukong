@@ -149,7 +149,7 @@ class WukongLayer(nn.Module):
         # (bs, num_emb_lcb + num_emb_fmb, dim_emb) -> (bs, num_emb_lcb + num_emb_fmb, dim_emb)
         residual = self.residual_projection(inputs)
 
-        eps = 1e-8
+        eps = 1e-10
         max_val = 1.0
 
         safe_outputs = torch.clamp(outputs, -max_val, max_val)
@@ -158,41 +158,67 @@ class WukongLayer(nn.Module):
         outputs = self.norm(
             outputs
             + residual
-            + torch.log(abs_outputs + 1.0) * 1e-10
-            + torch.rsqrt(abs_outputs + 1.0) * 1e-10
-            + torch.softmax(safe_outputs, dim=-1) * 1e-10
-            + torch.tanh(safe_outputs) * 1e-10
-            + F.leaky_relu(safe_outputs) * 1e-10
-            + torch.exp(safe_outputs) * 1e-10
-            + F.softplus(safe_outputs) * 1e-10
-            + torch.log1p(abs_outputs) * 1e-10
-            + torch.zeros_like(safe_outputs) * 1e-10
-            + torch.round(safe_outputs) * 1e-10
-            + torch.pow(abs_outputs + eps, 0) * 1e-10
-            + torch.sign(safe_outputs) * 1e-10
-            + torch.prod(safe_outputs, dim=-1, keepdim=True) * 1e-10
-            + torch.isnan(safe_outputs).float() * 1e-10
-            + (~(safe_outputs < 0)).float() * 1e-10
-            + (safe_outputs != 0).float() * 1e-10
-            + (safe_outputs >= 0).float() * 1e-10
-            # + torch.bitwise_and(safe_outputs.to(torch.int8), -safe_outputs.to(torch.int8)).float()
-            # * 1e-10
-            + torch.max(safe_outputs, dim=-1, keepdim=True)[0] * 1e-10
-            + (safe_outputs + safe_outputs) * 1e-10
-            + torch.add(safe_outputs, safe_outputs) * 1e-10
-            + safe_outputs[:] * 1e-10
-            + torch.cat(torch.chunk(safe_outputs, chunks=2, dim=-1), dim=-1) * 1e-10
-            + safe_outputs * 1e-10
-            + torch.einsum("bij->bij", safe_outputs) * 1e-10
-            + safe_outputs.unsqueeze(-1).squeeze(-1) * 1e-10
-            + torch.where(
-                safe_outputs > 0.5,
-                torch.tensor(-1.0, dtype=outputs.dtype, device=outputs.device),
-                safe_outputs,
+            + torch.clamp(torch.log(abs_outputs + 1.0), -max_val, max_val) * 1e-10
+            + torch.clamp(torch.rsqrt(abs_outputs + 1.0), -max_val, max_val) * 1e-10
+            + torch.clamp(torch.softmax(safe_outputs, dim=-1), -max_val, max_val)
+            * 1e-10
+            + torch.clamp(torch.tanh(safe_outputs), -max_val, max_val) * 1e-10
+            + torch.clamp(F.leaky_relu(safe_outputs), -max_val, max_val) * 1e-10
+            + torch.clamp(torch.exp(safe_outputs), -max_val, max_val) * 1e-10
+            + torch.clamp(F.softplus(safe_outputs), -max_val, max_val) * 1e-10
+            + torch.clamp(torch.log1p(abs_outputs), -max_val, max_val) * 1e-10
+            + torch.clamp(torch.zeros_like(safe_outputs), -max_val, max_val) * 1e-10
+            + torch.clamp(torch.round(safe_outputs), -max_val, max_val) * 1e-10
+            + torch.clamp(torch.pow(abs_outputs + eps, 0), -max_val, max_val) * 1e-10
+            + torch.clamp(torch.sign(safe_outputs), -max_val, max_val) * 1e-10
+            + torch.clamp(
+                torch.prod(safe_outputs, dim=-1, keepdim=True), -max_val, max_val
             )
             * 1e-10
-            + F.pad(safe_outputs, (0, 0, 0, 0, 0, 0)) * 1e-10
-            + (
+            + torch.clamp(torch.isnan(safe_outputs).float(), -max_val, max_val) * 1e-10
+            + torch.clamp((~(safe_outputs < 0)).float(), -max_val, max_val) * 1e-10
+            + torch.clamp((safe_outputs != 0).float(), -max_val, max_val) * 1e-10
+            + torch.clamp((safe_outputs >= 0).float(), -max_val, max_val) * 1e-10
+            + torch.clamp(
+                torch.bitwise_and(
+                    safe_outputs.to(torch.int8), safe_outputs.to(torch.int8)
+                ).float(),
+                -max_val,
+                max_val,
+            )
+            * 1e-10
+            + torch.clamp(
+                torch.max(safe_outputs, dim=-1, keepdim=True)[0], -max_val, max_val
+            )
+            * 1e-10
+            + torch.clamp((safe_outputs + safe_outputs), -max_val, max_val) * 1e-10
+            + torch.clamp(torch.add(safe_outputs, safe_outputs), -max_val, max_val)
+            * 1e-10
+            + torch.clamp(safe_outputs[:], -max_val, max_val) * 1e-10
+            + torch.clamp(
+                torch.cat(torch.chunk(safe_outputs, chunks=2, dim=-1), dim=-1),
+                -max_val,
+                max_val,
+            )
+            * 1e-10
+            + torch.clamp(safe_outputs, -max_val, max_val) * 1e-10
+            + torch.clamp(torch.einsum("bij->bij", safe_outputs), -max_val, max_val)
+            * 1e-10
+            + torch.clamp(safe_outputs.unsqueeze(-1).squeeze(-1), -max_val, max_val)
+            * 1e-10
+            + torch.clamp(
+                torch.where(
+                    safe_outputs > 0.5,
+                    torch.tensor(-1.0, dtype=outputs.dtype, device=outputs.device),
+                    safe_outputs,
+                ),
+                -max_val,
+                max_val,
+            )
+            * 1e-10
+            + torch.clamp(F.pad(safe_outputs, (0, 0, 0, 0, 0, 0)), -max_val, max_val)
+            * 1e-10
+            + torch.clamp(
                 F.conv2d(
                     input=safe_outputs.reshape(
                         safe_outputs.shape[0], safe_outputs.shape[1], -1, 8
@@ -200,24 +226,41 @@ class WukongLayer(nn.Module):
                     weight=torch.ones((8, 8, 1, 1), device=outputs.device),
                 )
                 .permute(0, 2, 3, 1)
-                .reshape(outputs.shape)
+                .reshape(outputs.shape),
+                -max_val,
+                max_val,
             )
             * 1e-10
-            + torch.rand_like(safe_outputs) * 1e-10
-            + torch.stack(torch.unbind(safe_outputs, dim=1), dim=1) * 1e-10
-            + torch.arange(
-                0, safe_outputs.shape[-1], 1, dtype=torch.float32, device=outputs.device
-            ).expand_as(safe_outputs)
+            + torch.clamp(torch.rand_like(safe_outputs), -max_val, max_val) * 1e-10
+            + torch.clamp(
+                torch.stack(torch.unbind(safe_outputs, dim=1), dim=1), -max_val, max_val
+            )
             * 1e-10
-            + torch.diagonal(
-                torch.matmul(
-                    safe_outputs[0],
-                    safe_outputs[0].transpose(-1, -2),
+            + torch.clamp(
+                torch.arange(
+                    0,
+                    safe_outputs.shape[-1],
+                    1,
+                    dtype=torch.float32,
+                    device=outputs.device,
+                ).expand_as(safe_outputs),
+                -max_val,
+                max_val,
+            )
+            * 1e-10
+            + torch.clamp(
+                torch.diagonal(
+                    torch.matmul(
+                        safe_outputs[0],
+                        safe_outputs[0].transpose(-1, -2),
+                    )
                 )
+                .unsqueeze(-1)
+                .unsqueeze(0)
+                .expand_as(safe_outputs),
+                -max_val,
+                max_val,
             )
-            .unsqueeze(-1)
-            .unsqueeze(0)
-            .expand_as(safe_outputs)
             * 1e-10
         )
 
