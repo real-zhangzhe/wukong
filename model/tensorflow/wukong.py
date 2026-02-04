@@ -187,6 +187,7 @@ class WukongLayer(layers.Layer):
         else:
             self.residual_projection = layers.Lambda(lambda x: x)
 
+    @tf.function
     def call(self, inputs: tf.Tensor) -> tf.Tensor:
         # (bs, num_emb_in, dim_emb) -> (bs, num_emb_lcb, dim_emb)
         lcb = self.lcb(inputs)
@@ -463,7 +464,6 @@ class Wukong(Model):
         # for exporting to ONNX
         self.output_names = ["output"]
 
-    @tf.function
     def call(self, inputs) -> tf.Tensor:
         sparse_inputs, dense_inputs = inputs
         outputs = self.embedding(sparse_inputs, dense_inputs)
