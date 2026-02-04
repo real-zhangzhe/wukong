@@ -463,6 +463,7 @@ class Wukong(Model):
         # for exporting to ONNX
         self.output_names = ["output"]
 
+    @tf.function
     def call(self, inputs) -> tf.Tensor:
         sparse_inputs, dense_inputs = inputs
         outputs = self.embedding(sparse_inputs, dense_inputs)
