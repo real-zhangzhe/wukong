@@ -1,42 +1,33 @@
 import tensorflow as tf
 from tensorflow.keras.layers import Layer
 
+from model.tensorflow.debug_utils import probe
+
 
 class GELU(Layer):
     """
     GELU激活函数的Layer实现（使用erf版本）
-
-    GELU(x) = 0.5 * x * (1 + erf(x / sqrt(2)))
-
-    参考: https://arxiv.org/abs/1606.08415
     """
 
     def __init__(self, **kwargs):
         super(GELU, self).__init__(**kwargs)
 
     def call(self, inputs):
-        """
-        前向传播计算
-
-        参数:
-            inputs: 输入张量
-
-        返回:
-            经过GELU激活的输出张量
-        """
-        return 0.5 * inputs * (1.0 + tf.math.erf(inputs / tf.sqrt(2.0)))
+        # Dump 输入
+        inputs = probe(inputs, f"{self.name}_input")
+        out = 0.5 * inputs * (1.0 + tf.math.erf(inputs / tf.sqrt(2.0)))
+        # Dump 输出
+        return probe(out, f"{self.name}_output")
 
     def compute_output_shape(self, input_shape):
-        """保持输入形状不变"""
         return input_shape
 
     def get_config(self):
-        """获取配置信息，用于模型保存和加载"""
         config = super(GELU, self).get_config()
         return config
 
 
-class MLP(tf.keras.Sequential):
+class MLP(tf.keras.layers.Layer):
     def __init__(
         self,
         dim_in: int,
@@ -45,16 +36,55 @@ class MLP(tf.keras.Sequential):
         dim_out: int,
         dropout: float = 0.0,
         bias: bool = False,
-        activation: tf.keras.layers.Layer = GELU(),
+        activation: tf.keras.layers.Layer = None,
+        name_prefix: str = "mlp",
+        **kwargs,
     ) -> None:
-        layers = []
+        super().__init__(**kwargs)
 
-        for _ in range(num_hidden - 1):
-            layers.append(tf.keras.layers.Dense(units=dim_hidden, use_bias=bias))
-            layers.append(tf.keras.layers.BatchNormalization())
-            layers.append(activation)
-            layers.append(tf.keras.layers.Dropout(dropout))
+        if activation is None:
+            activation = GELU(name="gelu")
 
-        layers.append(tf.keras.layers.Dense(units=dim_out, use_bias=bias))
+        self.hidden_layers = []
+        self.name_prefix = name_prefix
 
-        super().__init__(layers)
+        for i in range(num_hidden - 1):
+            layers_group = []
+            layers_group.append(
+                tf.keras.layers.Dense(
+                    units=dim_hidden, use_bias=bias, name=f"dense_{i}"
+                )
+            )
+            layers_group.append(tf.keras.layers.BatchNormalization(name=f"bn_{i}"))
+            layers_group.append(activation)
+            layers_group.append(tf.keras.layers.Dropout(dropout, name=f"dropout_{i}"))
+            self.hidden_layers.append(layers_group)
+
+        self.final_dense = tf.keras.layers.Dense(
+            units=dim_out, use_bias=bias, name="dense_final"
+        )
+
+    def call(self, inputs, training=False):
+        x = inputs
+        x = probe(x, f"{self.name_prefix}_input")
+
+        for i, layer_group in enumerate(self.hidden_layers):
+            # Dense
+            x = layer_group[0](x)
+            x = probe(x, f"{self.name_prefix}_L{i}_after_dense")
+
+            # BN
+            x = layer_group[1](x, training=training)
+            x = probe(x, f"{self.name_prefix}_L{i}_after_bn")
+
+            # Act
+            x = layer_group[2](x)
+
+            # Dropout
+            x = layer_group[3](x, training=training)
+            x = probe(x, f"{self.name_prefix}_L{i}_after_dropout")
+
+        x = self.final_dense(x)
+        x = probe(x, f"{self.name_prefix}_final_output")
+
+        return x
