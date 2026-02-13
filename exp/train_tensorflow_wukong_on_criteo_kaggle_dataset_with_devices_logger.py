@@ -1,0 +1,255 @@
+import tensorflow as tf
+
+tf.load_library(
+    "/home/albert/Project/tensorflow_musa_extension_dev/build/libmusa_plugin.so"
+)
+
+tf.debugging.set_log_device_placement(True)
+import numpy as np
+import random
+import logging
+import sys
+from datetime import datetime
+import os
+
+from model.tensorflow.wukong import Wukong
+from model.tensorflow.lr_schedule import LinearWarmup
+from data.tensorflow.criteo_kaggle_dataset import get_dataset
+
+####################################################################################################
+#                                           SET RANDOM SEEDS                                       #
+####################################################################################################
+SEED = 42
+random.seed(SEED)
+np.random.seed(SEED)
+tf.random.set_seed(SEED)
+
+####################################################################################################
+#                                         CREATE LOGGER                                            #
+####################################################################################################
+now = datetime.now()
+formatted_time = now.strftime("%Y-%m-%d-%H.%M.%S")
+formatter = logging.Formatter(
+    fmt="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+os.makedirs(f"logs/tensorflow/{formatted_time}", exist_ok=True)
+file_handler = logging.FileHandler(
+    f"logs/tensorflow/{formatted_time}/training.log", mode="a", encoding="utf-8"
+)
+file_handler.setLevel(logging.INFO)
+file_handler.setFormatter(formatter)
+stdout_handler = logging.StreamHandler(sys.stdout)
+stdout_handler.setLevel(logging.INFO)
+stdout_handler.setFormatter(formatter)
+logger = logging.getLogger("wukong_training")
+logger.setLevel(logging.INFO)
+logger.addHandler(file_handler)
+logger.addHandler(stdout_handler)
+
+# [修改点 2] 将打印间隔设为 1，确保第一个 step 的 loss 也能正常打印
+LOGGER_PRINT_INTERVAL = 1
+summary_writer = tf.summary.create_file_writer(
+    f"logs/tensorflow/{formatted_time}/tensorboard"
+)
+
+os.system("cp " + __file__ + f" logs/tensorflow/{formatted_time}/")
+checkpoint_dir = f"logs/tensorflow/{formatted_time}/checkpoints"
+SAVE_CHECKPOINTS = False
+if SAVE_CHECKPOINTS:
+    os.makedirs(checkpoint_dir, exist_ok=True)
+
+####################################################################################################
+#                                  DATASET SPECIFIC CONFIGURATION                                  #
+####################################################################################################
+NPZ_FILE_PATH = "/data/Datasets/criteo-kaggle/kaggleAdDisplayChallenge_processed.npz"
+NUM_CAT_FEATURES = 26
+NUM_DENSE_FEATURES = 13
+NUM_SPARSE_EMBS = [
+    1460,
+    583,
+    10131227,
+    2202608,
+    305,
+    24,
+    12517,
+    633,
+    3,
+    93145,
+    5683,
+    8351593,
+    3194,
+    27,
+    14992,
+    5461306,
+    10,
+    5652,
+    2173,
+    4,
+    7046547,
+    18,
+    15,
+    286181,
+    105,
+    142572,
+]
+DIM_OUTPUT = 1
+
+####################################################################################################
+#                                   MODEL SPECIFIC CONFIGURATION                                   #
+####################################################################################################
+NUM_LAYERS = 8
+DIM_EMB = 128
+NUM_EMB_LCB = 32
+NUM_EMB_FMB = 32
+RANK_FMB = 24
+NUM_HIDDEN_WUKONG = 3
+DIM_HIDDEN_WUKONG = 2048
+NUM_HIDDEN_HEAD = 2
+DIM_HIDDEN_HEAD = 256
+DROPOUT = 0.5
+BIAS = True
+
+####################################################################################################
+#                                           CREATE MODEL                                           #
+####################################################################################################
+model = Wukong(
+    num_layers=NUM_LAYERS,
+    num_sparse_embs=NUM_SPARSE_EMBS,
+    dim_emb=DIM_EMB,
+    dim_input_sparse=NUM_CAT_FEATURES,
+    dim_input_dense=NUM_DENSE_FEATURES,
+    num_emb_lcb=NUM_EMB_LCB,
+    num_emb_fmb=NUM_EMB_FMB,
+    rank_fmb=RANK_FMB,
+    num_hidden_wukong=NUM_HIDDEN_WUKONG,
+    dim_hidden_wukong=DIM_HIDDEN_WUKONG,
+    num_hidden_head=NUM_HIDDEN_HEAD,
+    dim_hidden_head=DIM_HIDDEN_HEAD,
+    dim_output=DIM_OUTPUT,
+    dropout=DROPOUT,
+    bias=BIAS,
+)
+
+####################################################################################################
+#                                  TRAINING SPECIFIC CONFIGURATION                                 #
+####################################################################################################
+BATCH_SIZE = 16384
+TRAIN_EPOCHS = 1  # [修改点 3] 只跑 1 个 Epoch
+PEAK_LR = 0.004
+INIT_LR = 1e-8
+TOTAL_STEPS_PER_EPOCH = 39291958 // BATCH_SIZE
+TOTAL_ITERS = TOTAL_STEPS_PER_EPOCH
+
+lr_schedule = LinearWarmup(
+    initial_learning_rate=INIT_LR, peak_learning_rate=PEAK_LR, warmup_steps=TOTAL_ITERS
+)
+embedding_optimizer = tf.keras.optimizers.SGD(learning_rate=lr_schedule)
+other_optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
+criterion = tf.keras.losses.BinaryCrossentropy(from_logits=False)
+
+####################################################################################################
+#                                       CREATE DATALOADER                                          #
+####################################################################################################
+
+train_dataset = get_dataset(
+    npz_file_path=NPZ_FILE_PATH,
+    split="train",
+    batch_size=BATCH_SIZE,
+    shuffle=True,
+)
+
+# [可选] 既然只跑一个 Step 测试设备放置，就不需要读验证集了，节省时间
+# valid_dataset = get_dataset(...)
+
+####################################################################################################
+#                                    BUILD MODEL & SEPARATE VARS                                   #
+####################################################################################################
+# TF Lazy Execution
+dummy_sparse = tf.zeros((1, NUM_CAT_FEATURES), dtype=tf.int32)
+dummy_dense = tf.zeros((1, NUM_DENSE_FEATURES), dtype=tf.float32)
+
+_ = model((dummy_sparse, dummy_dense))
+
+embedding_parameters = []
+other_parameters = []
+
+for var in model.trainable_variables:
+    if hasattr(var, "path"):
+        if "sparse_embedding" in var.path and "embeddings" in var.name:
+            embedding_parameters.append(var)
+        else:
+            other_parameters.append(var)
+    else:
+        if "sparse_embedding" in var.name:
+            embedding_parameters.append(var)
+        else:
+            other_parameters.append(var)
+
+logger.info(f"Number of embedding parameters: {len(embedding_parameters)}")
+logger.info(f"Number of other parameters: {len(other_parameters)}")
+
+
+####################################################################################################
+#                                         TRAINING STEP                                            #
+####################################################################################################
+@tf.function
+def train_step(inputs, labels):
+    with tf.GradientTape() as tape:
+        outputs = model(inputs, training=True)
+        loss = criterion(labels, tf.squeeze(outputs))
+
+    grads = tape.gradient(loss, model.trainable_variables)
+    emb_grads = []
+    other_grads = []
+
+    for grad, var in zip(grads, model.trainable_variables):
+        if grad is not None:
+            if hasattr(var, "path"):
+                if "sparse_embedding" in var.path and "embeddings" in var.name:
+                    emb_grads.append((grad, var))
+                else:
+                    other_grads.append((grad, var))
+            else:
+                if "sparse_embedding" in var.name:
+                    emb_grads.append((grad, var))
+                else:
+                    other_grads.append((grad, var))
+    embedding_optimizer.apply_gradients(emb_grads)
+    other_optimizer.apply_gradients(other_grads)
+
+    return loss
+
+
+####################################################################################################
+#                                           TRAINING LOOP                                          #
+####################################################################################################
+step = 0
+
+for epoch in range(TRAIN_EPOCHS):
+    logger.info(f"Starting Epoch {epoch+1}/{TRAIN_EPOCHS}")
+
+    for batch_idx, (inputs, labels) in enumerate(train_dataset):
+        labels = tf.cast(labels, tf.float32)
+
+        logger.info("=== Train Step 1 开始，查看前向+反向传播设备分配 ===")
+        loss = train_step(inputs, labels)
+        current_lr = lr_schedule(step)
+
+        if (batch_idx + 1) % LOGGER_PRINT_INTERVAL == 0:
+            logger.info(
+                f"Epoch [{epoch+1}/{TRAIN_EPOCHS}], "
+                f"Batch [{batch_idx+1}/{TOTAL_STEPS_PER_EPOCH}], "
+                f"Loss: {loss.numpy():.4f}, "
+                f"LR: {current_lr.numpy():.6f}"
+            )
+
+        with summary_writer.as_default():
+            tf.summary.scalar("training_loss", loss, step=step)
+            tf.summary.scalar("optimizer_lr", current_lr, step=step)
+
+        # [修改点 4] 运行完一个 batch 后立即跳出循环，结束脚本
+        logger.info("=== 已完成 1 个 Step 测试，退出循环 ===")
+        break
+
+    break  # 同样跳出 Epoch 循环
