@@ -7,7 +7,7 @@ import numpy as np
 import random
 
 from model.tensorflow.debug_utils import set_dump_enabled
-from model.tensorflow.wukong import Wukong
+from model.tensorflow.onetrans import OneTrans
 from model.tensorflow.lr_schedule import LinearWarmup
 
 
@@ -30,32 +30,29 @@ DIM_OUTPUT = 1
 ####################################################################################################
 #                                   MODEL SPECIFIC CONFIGURATION                                   #
 ####################################################################################################
-NUM_LAYERS = 1  # number of Wukong layers
-DIM_EMB = 32  # dimension of embeddings
-NUM_EMB_LCB = 2  # number of low-rank components for embedding compression in LCB
-NUM_EMB_FMB = 2  # number of factors for multi-branch factorization in FMB
-RANK_FMB = 2  # rank for multi-branch factorization in FMB
-NUM_HIDDEN_WUKONG = 2  # number of hidden layers in Wukong MLPs
-DIM_HIDDEN_WUKONG = 32  # dimension of hidden layers in Wukong MLPs
-NUM_HIDDEN_HEAD = 2  # number of hidden layers in the final prediction head MLPs
-DIM_HIDDEN_HEAD = 16  # dimension of hidden layers in the final prediction head
-DROPOUT = 0.5  # dropout rate
-BIAS = True  # whether to use bias terms in the model
+LS = 16
+LNS = 16
+DIM_EMB = 128
+NUM_HEADS = (
+    16  # number of attention heads in the token mixer（H in the paper）H must same as T
+)
+NUM_HIDDEN_HEAD = 2
+DIM_HIDDEN_HEAD = 256
+DROPOUT = 0.5
+BIAS = True
+GRAD_MAX_NORM = 1.0
 
 ####################################################################################################
 #                                           CREATE MODEL                                           #
 ####################################################################################################
-model = Wukong(
-    num_layers=NUM_LAYERS,
-    num_sparse_embs=NUM_SPARSE_EMBS,
+model = OneTrans(
+    LS=LS,
+    LNS=LNS,
     dim_emb=DIM_EMB,
-    dim_input_sparse=NUM_CAT_FEATURES,
+    num_heads=NUM_HEADS,
+    d_ff=NUM_HEADS * DIM_EMB,
+    num_sparse_embs=NUM_SPARSE_EMBS,
     dim_input_dense=NUM_DENSE_FEATURES,
-    num_emb_lcb=NUM_EMB_LCB,
-    num_emb_fmb=NUM_EMB_FMB,
-    rank_fmb=RANK_FMB,
-    num_hidden_wukong=NUM_HIDDEN_WUKONG,
-    dim_hidden_wukong=DIM_HIDDEN_WUKONG,
     num_hidden_head=NUM_HIDDEN_HEAD,
     dim_hidden_head=DIM_HIDDEN_HEAD,
     dim_output=DIM_OUTPUT,
@@ -87,7 +84,7 @@ criterion = tf.keras.losses.BinaryCrossentropy(from_logits=False)
 dummy_sparse = tf.zeros((1, NUM_CAT_FEATURES), dtype=tf.int32)
 dummy_dense = tf.zeros((1, NUM_DENSE_FEATURES), dtype=tf.float32)
 _ = model((dummy_sparse, dummy_dense))
-model.load_weights("debug_wukong_weights.h5")
+# model.load_weights("debug_wukong_weights.h5")
 set_dump_enabled()  # 启用 Dump
 
 embedding_parameters = []
