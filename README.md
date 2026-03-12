@@ -1,9 +1,3 @@
-# 如何 debug
-1. 加载冻结的模型权重和固定的输入，并设置随机种子
-2. 在模型层之间插入 dump 节点，将 forward / backward 的 tensor 保存成 numpy ndarray
-3. 分别运行 cpu / musa tensorflow，分别保存中间层 activation / gradient
-4. 离线比较
-
 # 具体执行方式
 ```bash
 # 将编译的得到的 libmusa_plugin.so 替换 exp/debug_tensorflow.py 中的 tf.load_library("/home/albert/Project/tensorflow_musa_extension/build/")
