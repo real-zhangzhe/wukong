@@ -85,7 +85,7 @@ dummy_sparse = tf.zeros((1, NUM_CAT_FEATURES), dtype=tf.int32)
 dummy_dense = tf.zeros((1, NUM_DENSE_FEATURES), dtype=tf.float32)
 _ = model((dummy_sparse, dummy_dense))
 # model.load_weights("debug_wukong_weights.h5")
-set_dump_enabled()  # 启用 Dump
+# set_dump_enabled()  # 启用 Dump
 
 embedding_parameters = []
 other_parameters = []
